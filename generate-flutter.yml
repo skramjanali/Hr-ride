@@ -1,28 +1,21 @@
-name: Generate Flutter Android
+name: Generate Android
 
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  generate:
+  build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
         with:
           channel: stable
-
-      - name: Generate Android project
-        run: flutter create . --platforms=android
-
-      - name: Commit Android folder
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add android
-          git commit -m "Generate Flutter Android project" || echo "No changes to commit"
-          git push
+      - run: rm -rf android
+      - run: flutter create . --platforms=android
+      - run: cp app/google-services.json android/app/google-services.json
+      - run: git add android && git commit -m "Generate Android" || true
+      - run: git push
