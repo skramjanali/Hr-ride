@@ -1,6 +1,10 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
   runApp(const HRRideApp());
 }
 
@@ -13,12 +17,204 @@ class HRRideApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'HR RIDE',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.blue,
-        ),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
-      home: const HomePage(),
+      home: const LoginPage(),
+    );
+  }
+}
+
+class LoginPage extends StatefulWidget {
+  const LoginPage({super.key});
+
+  @override
+  State<LoginPage> createState() => _LoginPageState();
+}
+
+class _LoginPageState extends State<LoginPage> {
+  final phoneController = TextEditingController();
+  final otpController = TextEditingController();
+
+  bool otpSent = false;
+  String verificationId = '';
+
+  Future<void> sendOTP() async {
+    final phone = phoneController.text.trim();
+
+    if (phone.length != 10) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a valid 10 digit mobile number')),
+      );
+      return;
+    }
+
+    await FirebaseAuth.instance.verifyPhoneNumber(
+      phoneNumber: '+91$phone',
+
+      verificationCompleted: (PhoneAuthCredential credential) async {
+        await FirebaseAuth.instance.signInWithCredential(credential);
+        goHome();
+      },
+
+      verificationFailed: (FirebaseAuthException e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.message ?? 'OTP verification failed'),
+          ),
+        );
+      },
+
+      codeSent: (String id, int? resendToken) {
+        setState(() {
+          verificationId = id;
+          otpSent = true;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('OTP sent successfully')),
+        );
+      },
+
+      codeAutoRetrievalTimeout: (String id) {
+        verificationId = id;
+      },
+    );
+  }
+
+  Future<void> verifyOTP() async {
+    if (otpController.text.trim().length != 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter 6 digit OTP')),
+      );
+      return;
+    }
+
+    try {
+      final credential = PhoneAuthProvider.credential(
+        verificationId: verificationId,
+        smsCode: otpController.text.trim(),
+      );
+
+      await FirebaseAuth.instance.signInWithCredential(credential);
+
+      goHome();
+    } on FirebaseAuthException catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message ?? 'Invalid OTP'),
+        ),
+      );
+    }
+  }
+
+  void goHome() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const HomePage(),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    phoneController.dispose();
+    otpController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'HR RIDE',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        centerTitle: true,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.directions_car,
+              size: 90,
+            ),
+
+            const SizedBox(height: 20),
+
+            const Text(
+              'Welcome to HR RIDE',
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            const Text(
+              'Login / Sign Up with Mobile OTP',
+              style: TextStyle(fontSize: 16),
+            ),
+
+            const SizedBox(height: 35),
+
+            TextField(
+              controller: phoneController,
+              keyboardType: TextInputType.phone,
+              maxLength: 10,
+              decoration: InputDecoration(
+                labelText: 'Mobile Number',
+                hintText: 'Enter 10 digit number',
+                prefixText: '+91 ',
+                prefixIcon: const Icon(Icons.phone),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+
+            if (otpSent) ...[
+              const SizedBox(height: 15),
+
+              TextField(
+                controller: otpController,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
+                decoration: InputDecoration(
+                  labelText: 'Enter OTP',
+                  hintText: '6 digit OTP',
+                  prefixIcon: const Icon(Icons.lock),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 20),
+
+            SizedBox(
+              width: double.infinity,
+              height: 55,
+              child: ElevatedButton(
+                onPressed: otpSent ? verifyOTP : sendOTP,
+                child: Text(
+                  otpSent ? 'VERIFY OTP' : 'SEND OTP',
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -45,7 +241,9 @@ class HomePage extends StatelessWidget {
               Icons.directions_car,
               size: 100,
             ),
+
             const SizedBox(height: 20),
+
             const Text(
               'Welcome to HR Ride',
               style: TextStyle(
@@ -53,12 +251,16 @@ class HomePage extends StatelessWidget {
                 fontWeight: FontWeight.bold,
               ),
             ),
+
             const SizedBox(height: 10),
+
             const Text(
               'Your trusted ride service',
               style: TextStyle(fontSize: 16),
             ),
+
             const SizedBox(height: 35),
+
             SizedBox(
               width: double.infinity,
               height: 55,
@@ -109,10 +311,7 @@ class _BookingPageState extends State<BookingPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Book Your Ride',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Book Your Ride'),
         centerTitle: true,
       ),
       body: SingleChildScrollView(
@@ -127,6 +326,7 @@ class _BookingPageState extends State<BookingPage> {
                 fontWeight: FontWeight.bold,
               ),
             ),
+
             const SizedBox(height: 8),
 
             TextField(
@@ -149,6 +349,7 @@ class _BookingPageState extends State<BookingPage> {
                 fontWeight: FontWeight.bold,
               ),
             ),
+
             const SizedBox(height: 8),
 
             TextField(
@@ -164,9 +365,8 @@ class _BookingPageState extends State<BookingPage> {
 
             const SizedBox(height: 25),
 
-            Card(
-              elevation: 3,
-              child: const ListTile(
+            const Card(
+              child: ListTile(
                 leading: Icon(
                   Icons.directions_car,
                   size: 42,
@@ -194,12 +394,8 @@ class _BookingPageState extends State<BookingPage> {
               height: 55,
               child: ElevatedButton(
                 onPressed: () {
-                  final pickup =
-                      pickupController.text.trim();
-                  final drop =
-                      dropController.text.trim();
-
-                  if (pickup.isEmpty || drop.isEmpty) {
+                  if (pickupController.text.trim().isEmpty ||
+                      dropController.text.trim().isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text(
@@ -214,12 +410,10 @@ class _BookingPageState extends State<BookingPage> {
                     context: context,
                     builder: (context) {
                       return AlertDialog(
-                        title: const Text(
-                          'Booking Confirmed',
-                        ),
+                        title: const Text('Booking Confirmed'),
                         content: Text(
-                          'Pickup: $pickup\n\n'
-                          'Drop: $drop\n\n'
+                          'Pickup: ${pickupController.text}\n\n'
+                          'Drop: ${dropController.text}\n\n'
                           'Vehicle: Maruti Ertiga',
                         ),
                         actions: [
