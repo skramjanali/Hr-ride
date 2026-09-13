@@ -8,14 +8,13 @@ workflows:
       flutter: stable
 
     scripts:
-         - name: Generate fresh Android
+      - name: Generate fresh Android
         script: |
           rm -rf android
           flutter create . --platforms=android --org com.hrride
           cp app/google-services.json android/app/google-services.json
 
-      - name: Build APK
-              - name: Get packages
+      - name: Get packages
         script: flutter pub get
 
       - name: Build APK
