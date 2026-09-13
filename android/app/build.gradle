@@ -1,1 +1,23 @@
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    id "dev.flutter.flutter-gradle-plugin"
+    id "com.google.gms.google-services"
+}
 
+android {
+    namespace = "com.hrride.app"
+    compileSdk = flutter.compileSdkVersion
+
+    defaultConfig {
+        applicationId = "com.hrride.app"
+        minSdk = 23
+        targetSdk = flutter.targetSdkVersion
+        versionCode = 19
+        versionName = "1.0.0"
+    }
+}
+
+flutter {
+    source = "../.."
+}
