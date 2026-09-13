@@ -1,9 +1,6 @@
 name: Unpack HR RIDE
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 permissions:
@@ -17,13 +14,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Check ZIP
+        run: |
+          pwd
+          ls -la
+          test -f ./HR_RIDE.zip
+
       - name: Unzip HR RIDE project
         run: |
-          unzip -o HR_RIDE.zip -d extracted
-          cp -r extracted/*/. .
-          find extracted -mindepth 1 -maxdepth 1 -type d -exec cp -r {}/* . \; || true
-          rm -rf extracted
-          rm -f HR_RIDE.zip
+          unzip -o ./HR_RIDE.zip -d ./hr_ride_extracted
+          cp -a ./hr_ride_extracted/. .
+          rm -rf ./hr_ride_extracted
+          rm -f ./HR_RIDE.zip
+
+      - name: Check Flutter project
+        run: |
+          test -f pubspec.yaml
+          test -d lib
+          echo "HR RIDE Flutter project extracted successfully"
 
       - name: Commit project files
         run: |
