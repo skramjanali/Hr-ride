@@ -2,3 +2,22 @@ workflows:
   hr-ride-android:
     name: HR RIDE Android APK
     instance_type: mac_mini_m2
+    max_build_duration: 60
+
+    environment:
+      flutter: stable
+
+    scripts:
+      - name: Generate fresh Android
+        script: |
+          rm -rf android
+          flutter create . --platforms=android
+          cp app/google-services.json android/app/google-services.json
+                - name: Get packages
+        script: flutter pub get
+
+      - name: Build APK
+        script: flutter build apk --release
+
+    artifacts:
+      - build/app/outputs/flutter-apk/app-release.apk
