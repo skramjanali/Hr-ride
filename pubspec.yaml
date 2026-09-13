@@ -13,13 +13,9 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.8
   google_places_flutter: ^2.1.0
-dependencies:
-  flutter:
-    sdk: flutter
-  cupertino_icons: ^1.0.8
-  google_places_flutter: ^2.1.0
   firebase_core: ^4.1.0
   firebase_auth: ^6.0.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
