@@ -1,6 +1,9 @@
-name: Prepare HR RIDE project
+name: Unpack HR RIDE
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -9,16 +12,17 @@ permissions:
 jobs:
   unpack:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Unpack HR RIDE ZIP
+      - name: Unzip HR RIDE project
         run: |
-          test -f HR_RIDE.zip
-          mkdir -p /tmp/hr_ride
-          unzip -q HR_RIDE.zip -d /tmp/hr_ride
-          cp -a /tmp/hr_ride/. .
+          unzip -o HR_RIDE.zip -d extracted
+          cp -r extracted/*/. .
+          find extracted -mindepth 1 -maxdepth 1 -type d -exec cp -r {}/* . \; || true
+          rm -rf extracted
           rm -f HR_RIDE.zip
 
       - name: Commit project files
@@ -26,5 +30,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git diff --cached --quiet || git commit -m "Prepare HR RIDE Flutter project"
+          git diff --cached --quiet || git commit -m "Extract HR RIDE Flutter project"
           git push
