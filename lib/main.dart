@@ -2,9 +2,15 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+
+  try {
+    await Firebase.initializeApp();
+  } catch (_) {
+    // App can still open if Firebase configuration has an issue.
+  }
+
   runApp(const HRRideApp());
 }
 
@@ -25,6 +31,8 @@ class HRRideApp extends StatelessWidget {
   }
 }
 
+// ---------------- LOGIN ----------------
+
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -44,48 +52,64 @@ class _LoginPageState extends State<LoginPage> {
 
     if (phone.length != 10) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a valid 10 digit mobile number')),
+        const SnackBar(
+          content: Text('Enter a valid 10 digit mobile number'),
+        ),
       );
       return;
     }
 
-    await FirebaseAuth.instance.verifyPhoneNumber(
-      phoneNumber: '+91$phone',
+    try {
+      await FirebaseAuth.instance.verifyPhoneNumber(
+        phoneNumber: '+91$phone',
 
-      verificationCompleted: (PhoneAuthCredential credential) async {
-        await FirebaseAuth.instance.signInWithCredential(credential);
-        goHome();
-      },
+        verificationCompleted: (credential) async {
+          await FirebaseAuth.instance.signInWithCredential(credential);
+          goHome();
+        },
 
-      verificationFailed: (FirebaseAuthException e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.message ?? 'OTP verification failed'),
-          ),
-        );
-      },
+        verificationFailed: (e) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(e.message ?? 'OTP verification failed'),
+            ),
+          );
+        },
 
-      codeSent: (String id, int? resendToken) {
-        setState(() {
+        codeSent: (id, resendToken) {
+          setState(() {
+            verificationId = id;
+            otpSent = true;
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('OTP sent successfully'),
+            ),
+          );
+        },
+
+        codeAutoRetrievalTimeout: (id) {
           verificationId = id;
-          otpSent = true;
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('OTP sent successfully')),
-        );
-      },
-
-      codeAutoRetrievalTimeout: (String id) {
-        verificationId = id;
-      },
-    );
+        },
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to send OTP'),
+        ),
+      );
+    }
   }
 
   Future<void> verifyOTP() async {
-    if (otpController.text.trim().length != 6) {
+    final otp = otpController.text.trim();
+
+    if (otp.length != 6) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter 6 digit OTP')),
+        const SnackBar(
+          content: Text('Enter 6 digit OTP'),
+        ),
       );
       return;
     }
@@ -93,16 +117,16 @@ class _LoginPageState extends State<LoginPage> {
     try {
       final credential = PhoneAuthProvider.credential(
         verificationId: verificationId,
-        smsCode: otpController.text.trim(),
+        smsCode: otp,
       );
 
       await FirebaseAuth.instance.signInWithCredential(credential);
 
       goHome();
-    } on FirebaseAuthException catch (e) {
+    } catch (_) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.message ?? 'Invalid OTP'),
+        const SnackBar(
+          content: Text('Invalid OTP'),
         ),
       );
     }
@@ -112,7 +136,7 @@ class _LoginPageState extends State<LoginPage> {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (context) => const HomePage(),
+        builder: (_) => const HomePage(),
       ),
     );
   }
@@ -134,11 +158,13 @@ class _LoginPageState extends State<LoginPage> {
         ),
         centerTitle: true,
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            const SizedBox(height: 70),
+
             const Icon(
               Icons.directions_car,
               size: 90,
@@ -179,7 +205,7 @@ class _LoginPageState extends State<LoginPage> {
             ),
 
             if (otpSent) ...[
-              const SizedBox(height: 15),
+              const SizedBox(height: 10),
 
               TextField(
                 controller: otpController,
@@ -219,6 +245,8 @@ class _LoginPageState extends State<LoginPage> {
   }
 }
 
+// ---------------- HOME ----------------
+
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
@@ -245,7 +273,7 @@ class HomePage extends StatelessWidget {
             const SizedBox(height: 20),
 
             const Text(
-              'Welcome to HR Ride',
+              'Welcome to HR RIDE',
               style: TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
@@ -269,7 +297,7 @@ class HomePage extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const BookingPage(),
+                      builder: (_) => const BookingPage(),
                     ),
                   );
                 },
@@ -289,6 +317,8 @@ class HomePage extends StatelessWidget {
   }
 }
 
+// ---------------- BOOKING ----------------
+
 class BookingPage extends StatefulWidget {
   const BookingPage({super.key});
 
@@ -305,6 +335,39 @@ class _BookingPageState extends State<BookingPage> {
     pickupController.dispose();
     dropController.dispose();
     super.dispose();
+  }
+
+  void confirmBooking() {
+    final pickup = pickupController.text.trim();
+    final drop = dropController.text.trim();
+
+    if (pickup.isEmpty || drop.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter pickup and drop location'),
+        ),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Booking Confirmed'),
+        content: Text(
+          'Pickup: $pickup\n\n'
+          'Drop: $drop\n\n'
+          'Vehicle: Maruti Ertiga\n'
+          'Service: HR RIDE',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -393,41 +456,7 @@ class _BookingPageState extends State<BookingPage> {
               width: double.infinity,
               height: 55,
               child: ElevatedButton(
-                onPressed: () {
-                  if (pickupController.text.trim().isEmpty ||
-                      dropController.text.trim().isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Please enter pickup and drop location',
-                        ),
-                      ),
-                    );
-                    return;
-                  }
-
-                  showDialog(
-                    context: context,
-                    builder: (context) {
-                      return AlertDialog(
-                        title: const Text('Booking Confirmed'),
-                        content: Text(
-                          'Pickup: ${pickupController.text}\n\n'
-                          'Drop: ${dropController.text}\n\n'
-                          'Vehicle: Maruti Ertiga',
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () {
-                              Navigator.pop(context);
-                            },
-                            child: const Text('OK'),
-                          ),
-                        ],
-                      );
-                    },
-                  );
-                },
+                onPressed: confirmBooking,
                 child: const Text(
                   'CONFIRM BOOKING',
                   style: TextStyle(
@@ -443,3 +472,5 @@ class _BookingPageState extends State<BookingPage> {
     );
   }
 }
+
+ 
