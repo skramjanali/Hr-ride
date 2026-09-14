@@ -1,48 +1,16 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  try {
-    await Firebase.initializeApp();
-  } catch (e) {
-    runApp(FirebaseErrorApp(error: e.toString()));
-    return;
-  }
+  await Firebase.initializeApp();
+
+  await GoogleSignIn.instance.initialize();
 
   runApp(const HRRideApp());
-}
-
-class FirebaseErrorApp extends StatelessWidget {
-  final String error;
-
-  const FirebaseErrorApp({
-    super.key,
-    required this.error,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: Scaffold(
-        appBar: AppBar(
-          title: const Text('HR RIDE'),
-        ),
-        body: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Center(
-            child: Text(
-              'Firebase Error:\n\n$error',
-              style: const TextStyle(fontSize: 16),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 class HRRideApp extends StatelessWidget {
@@ -54,8 +22,11 @@ class HRRideApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'HR RIDE',
       theme: ThemeData(
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: const Color(0xFF071426),
         colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.blue,
+          seedColor: const Color(0xFF1687FF),
+          brightness: Brightness.dark,
         ),
         useMaterial3: true,
       ),
@@ -74,16 +45,66 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final TextEditingController phoneController =
-      TextEditingController();
-
-  final TextEditingController otpController =
-      TextEditingController();
+  final phoneController = TextEditingController();
+  final otpController = TextEditingController();
 
   bool otpSent = false;
+  bool loading = false;
   String verificationId = '';
 
-  bool loading = false;
+  // ---------- GOOGLE LOGIN ----------
+
+  Future<void> googleLogin() async {
+    setState(() => loading = true);
+
+    try {
+      final GoogleSignInAccount googleUser =
+          await GoogleSignIn.instance.authenticate();
+
+      final GoogleSignInAuthentication googleAuth =
+          googleUser.authentication;
+
+      final credential = GoogleAuthProvider.credential(
+        idToken: googleAuth.idToken,
+      );
+
+      await FirebaseAuth.instance.signInWithCredential(
+        credential,
+      );
+
+      if (!mounted) return;
+
+      goHome();
+    } on GoogleSignInException catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Google Login Error:\n${e.code}',
+          ),
+          duration: const Duration(seconds: 8),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Google Login Error:\n$e',
+          ),
+          duration: const Duration(seconds: 8),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => loading = false);
+      }
+    }
+  }
+
+  // ---------- SEND OTP ----------
 
   Future<void> sendOTP() async {
     final phone = phoneController.text.trim();
@@ -99,9 +120,7 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
-    setState(() {
-      loading = true;
-    });
+    setState(() => loading = true);
 
     try {
       await FirebaseAuth.instance.verifyPhoneNumber(
@@ -109,25 +128,13 @@ class _LoginPageState extends State<LoginPage> {
 
         verificationCompleted:
             (PhoneAuthCredential credential) async {
-          try {
-            await FirebaseAuth.instance
-                .signInWithCredential(credential);
+          await FirebaseAuth.instance.signInWithCredential(
+            credential,
+          );
 
-            if (!mounted) return;
-
-            setState(() {
-              loading = false;
-            });
-
+          if (mounted) {
+            setState(() => loading = false);
             goHome();
-          } catch (e) {
-            if (!mounted) return;
-
-            setState(() {
-              loading = false;
-            });
-
-            showFirebaseError(e);
           }
         },
 
@@ -135,23 +142,20 @@ class _LoginPageState extends State<LoginPage> {
             (FirebaseAuthException e) {
           if (!mounted) return;
 
-          setState(() {
-            loading = false;
-          });
+          setState(() => loading = false);
 
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
                 'Firebase: ${e.code}\n'
-                '${e.message ?? 'Unknown error'}',
+                '${e.message ?? ''}',
               ),
               duration: const Duration(seconds: 10),
             ),
           );
         },
 
-        codeSent:
-            (String id, int? resendToken) {
+        codeSent: (String id, int? resendToken) {
           if (!mounted) return;
 
           setState(() {
@@ -162,28 +166,30 @@ class _LoginPageState extends State<LoginPage> {
 
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text(
-                'OTP sent successfully',
-              ),
+              content: Text('OTP sent successfully'),
             ),
           );
         },
 
-        codeAutoRetrievalTimeout:
-            (String id) {
+        codeAutoRetrievalTimeout: (String id) {
           verificationId = id;
         },
       );
     } catch (e) {
       if (!mounted) return;
 
-      setState(() {
-        loading = false;
-      });
+      setState(() => loading = false);
 
-      showFirebaseError(e);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('OTP Error:\n$e'),
+          duration: const Duration(seconds: 10),
+        ),
+      );
     }
   }
+
+  // ---------- VERIFY OTP ----------
 
   Future<void> verifyOTP() async {
     final otp = otpController.text.trim();
@@ -191,82 +197,42 @@ class _LoginPageState extends State<LoginPage> {
     if (otp.length != 6) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Enter 6 digit OTP',
-          ),
+          content: Text('Enter 6 digit OTP'),
         ),
       );
       return;
     }
-
-    if (verificationId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Please request OTP first',
-          ),
-        ),
-      );
-      return;
-    }
-
-    setState(() {
-      loading = true;
-    });
 
     try {
-      final credential =
-          PhoneAuthProvider.credential(
+      setState(() => loading = true);
+
+      final credential = PhoneAuthProvider.credential(
         verificationId: verificationId,
         smsCode: otp,
       );
 
-      await FirebaseAuth.instance
-          .signInWithCredential(credential);
+      await FirebaseAuth.instance.signInWithCredential(
+        credential,
+      );
 
       if (!mounted) return;
-
-      setState(() {
-        loading = false;
-      });
 
       goHome();
     } on FirebaseAuthException catch (e) {
-      if (!mounted) return;
-
-      setState(() {
-        loading = false;
-      });
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             'Firebase: ${e.code}\n'
-            '${e.message ?? 'Invalid OTP'}',
+            '${e.message ?? ''}',
           ),
           duration: const Duration(seconds: 10),
         ),
       );
-    } catch (e) {
-      if (!mounted) return;
-
-      setState(() {
-        loading = false;
-      });
-
-      showFirebaseError(e);
+    } finally {
+      if (mounted) {
+        setState(() => loading = false);
+      }
     }
-  }
-
-  void showFirebaseError(Object error) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Firebase Error:\n$error',
-        ),
-        duration: const Duration(seconds: 10),
-      ),
-    );
   }
 
   void goHome() {
@@ -288,124 +254,193 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'HR RIDE',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        centerTitle: true,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            const SizedBox(height: 50),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            children: [
+              const SizedBox(height: 55),
 
-            const Icon(
-              Icons.directions_car,
-              size: 90,
-            ),
-
-            const SizedBox(height: 20),
-
-            const Text(
-              'Welcome to HR RIDE',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-              ),
-              textAlign: TextAlign.center,
-            ),
-
-            const SizedBox(height: 10),
-
-            const Text(
-              'Login / Sign Up with Mobile OTP',
-              style: TextStyle(
-                fontSize: 16,
-              ),
-              textAlign: TextAlign.center,
-            ),
-
-            const SizedBox(height: 35),
-
-            TextField(
-              controller: phoneController,
-              keyboardType: TextInputType.phone,
-              maxLength: 10,
-              decoration: InputDecoration(
-                labelText: 'Mobile Number',
-                hintText: 'Enter 10 digit number',
-                prefixText: '+91 ',
-                prefixIcon: const Icon(
-                  Icons.phone,
+              // LOGO
+              Container(
+                width: 105,
+                height: 105,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1687FF),
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x661687FF),
+                      blurRadius: 30,
+                    ),
+                  ],
                 ),
-                border: OutlineInputBorder(
-                  borderRadius:
-                      BorderRadius.circular(12),
+                child: const Icon(
+                  Icons.directions_car,
+                  size: 60,
+                  color: Colors.white,
                 ),
               ),
-            ),
 
-            if (otpSent) ...[
-              const SizedBox(height: 10),
+              const SizedBox(height: 25),
 
+              const Text(
+                'HR RIDE',
+                style: TextStyle(
+                  fontSize: 34,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 2,
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
+              const Text(
+                'YOUR RIDE • OUR PRIORITY',
+                style: TextStyle(
+                  color: Color(0xFFB8C7D9),
+                  letterSpacing: 1.5,
+                ),
+              ),
+
+              const SizedBox(height: 45),
+
+              // PHONE
               TextField(
-                controller: otpController,
-                keyboardType:
-                    TextInputType.number,
-                maxLength: 6,
+                controller: phoneController,
+                keyboardType: TextInputType.phone,
+                maxLength: 10,
                 decoration: InputDecoration(
-                  labelText: 'Enter OTP',
-                  hintText: '6 digit OTP',
-                  prefixIcon: const Icon(
-                    Icons.lock,
-                  ),
+                  labelText: 'Mobile Number',
+                  hintText: 'Enter 10 digit number',
+                  prefixText: '+91 ',
+                  prefixIcon: const Icon(Icons.phone),
+                  filled: true,
+                  fillColor: const Color(0xFF10243B),
                   border: OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(18),
+                    borderSide: BorderSide.none,
                   ),
+                ),
+              ),
+
+              if (otpSent) ...[
+                const SizedBox(height: 12),
+
+                TextField(
+                  controller: otpController,
+                  keyboardType: TextInputType.number,
+                  maxLength: 6,
+                  decoration: InputDecoration(
+                    labelText: 'OTP',
+                    hintText: 'Enter 6 digit OTP',
+                    prefixIcon: const Icon(Icons.lock),
+                    filled: true,
+                    fillColor: const Color(0xFF10243B),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 18),
+
+              // OTP BUTTON
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: loading
+                      ? null
+                      : (otpSent ? verifyOTP : sendOTP),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor:
+                        const Color(0xFF1687FF),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                  ),
+                  child: loading
+                      ? const CircularProgressIndicator(
+                          color: Colors.white,
+                        )
+                      : Text(
+                          otpSent
+                              ? 'VERIFY OTP'
+                              : 'CONTINUE WITH OTP',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                ),
+              ),
+
+              const SizedBox(height: 22),
+
+              const Row(
+                children: [
+                  Expanded(child: Divider()),
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                    ),
+                    child: Text('OR'),
+                  ),
+                  Expanded(child: Divider()),
+                ],
+              ),
+
+              const SizedBox(height: 22),
+
+              // GOOGLE BUTTON
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: OutlinedButton(
+                  onPressed: loading ? null : googleLogin,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(
+                      color: Color(0xFF38506A),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment:
+                        MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.g_mobiledata,
+                        size: 34,
+                      ),
+                      SizedBox(width: 10),
+                      Text(
+                        'Continue with Google',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 35),
+
+              const Text(
+                'Secure login powered by Firebase',
+                style: TextStyle(
+                  color: Color(0xFF71869D),
+                  fontSize: 12,
                 ),
               ),
             ],
-
-            const SizedBox(height: 20),
-
-            SizedBox(
-              width: double.infinity,
-              height: 55,
-              child: ElevatedButton(
-                onPressed:
-                    loading
-                        ? null
-                        : (otpSent
-                            ? verifyOTP
-                            : sendOTP),
-                child: loading
-                    ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child:
-                            CircularProgressIndicator(
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : Text(
-                        otpSent
-                            ? 'VERIFY OTP'
-                            : 'SEND OTP',
-                        style:
-                            const TextStyle(
-                          fontSize: 17,
-                          fontWeight:
-                              FontWeight.bold,
-                        ),
-                      ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -430,41 +465,78 @@ class HomePage extends StatelessWidget {
         centerTitle: true,
       ),
       body: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(22),
         child: Column(
-          mainAxisAlignment:
-              MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(
-              Icons.directions_car,
-              size: 100,
-            ),
-
-            const SizedBox(height: 20),
+            const SizedBox(height: 25),
 
             const Text(
               'Welcome to HR RIDE',
               style: TextStyle(
-                fontSize: 28,
+                fontSize: 30,
                 fontWeight: FontWeight.bold,
               ),
-              textAlign: TextAlign.center,
             ),
 
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
 
             const Text(
-              'Your trusted ride service',
+              'Premium rides across West Bengal',
               style: TextStyle(
-                fontSize: 16,
+                color: Color(0xFF9EB1C7),
               ),
             ),
 
             const SizedBox(height: 35),
 
+            Container(
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [
+                    Color(0xFF1269C7),
+                    Color(0xFF0B3D78),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(25),
+              ),
+              child: const Row(
+                children: [
+                  Icon(
+                    Icons.directions_car,
+                    size: 60,
+                    color: Colors.white,
+                  ),
+                  SizedBox(width: 18),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Maruti Ertiga',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        SizedBox(height: 5),
+                        Text(
+                          'Comfort • Safe • Reliable',
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 25),
+
             SizedBox(
               width: double.infinity,
-              height: 55,
+              height: 58,
               child: ElevatedButton(
                 onPressed: () {
                   Navigator.push(
@@ -475,12 +547,19 @@ class HomePage extends StatelessWidget {
                     ),
                   );
                 },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      const Color(0xFF1687FF),
+                  shape: RoundedRectangleBorder(
+                    borderRadius:
+                        BorderRadius.circular(18),
+                  ),
+                ),
                 child: const Text(
-                  'BOOK NOW',
+                  'BOOK YOUR RIDE',
                   style: TextStyle(
-                    fontSize: 18,
-                    fontWeight:
-                        FontWeight.bold,
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
@@ -504,11 +583,11 @@ class BookingPage extends StatefulWidget {
 
 class _BookingPageState
     extends State<BookingPage> {
-  final TextEditingController
-      pickupController = TextEditingController();
+  final pickupController =
+      TextEditingController();
 
-  final TextEditingController
-      dropController = TextEditingController();
+  final dropController =
+      TextEditingController();
 
   void confirmBooking() {
     final pickup =
@@ -518,8 +597,7 @@ class _BookingPageState
         dropController.text.trim();
 
     if (pickup.isEmpty || drop.isEmpty) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
             'Please enter pickup and drop location',
@@ -539,14 +617,12 @@ class _BookingPageState
           'Pickup: $pickup\n\n'
           'Drop: $drop\n\n'
           'Vehicle: Maruti Ertiga\n'
-          'Service: HR RIDE\n'
-          'Area: West Bengal',
+          'HR RIDE • West Bengal',
         ),
         actions: [
           TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-            },
+            onPressed: () =>
+                Navigator.pop(context),
             child: const Text('OK'),
           ),
         ],
@@ -565,9 +641,7 @@ class _BookingPageState
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Book Your Ride',
-        ),
+        title: const Text('Book Your Ride'),
         centerTitle: true,
       ),
       body: SingleChildScrollView(
@@ -577,64 +651,70 @@ class _BookingPageState
               CrossAxisAlignment.start,
           children: [
             const Text(
-              'Pickup Location',
+              'Where are you going?',
               style: TextStyle(
-                fontSize: 17,
+                fontSize: 25,
                 fontWeight: FontWeight.bold,
               ),
             ),
 
-            const SizedBox(height: 8),
+            const SizedBox(height: 25),
 
             TextField(
               controller: pickupController,
               decoration: InputDecoration(
-                hintText:
-                    'Enter pickup location',
+                labelText: 'Pickup Location',
+                hintText: 'Enter pickup',
                 prefixIcon: const Icon(
                   Icons.my_location,
                 ),
+                filled: true,
+                fillColor:
+                    const Color(0xFF10243B),
                 border: OutlineInputBorder(
                   borderRadius:
-                      BorderRadius.circular(12),
+                      BorderRadius.circular(18),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 18),
+
+            TextField(
+              controller: dropController,
+              decoration: InputDecoration(
+                labelText: 'Drop Location',
+                hintText: 'Enter destination',
+                prefixIcon: const Icon(
+                  Icons.location_on,
+                ),
+                filled: true,
+                fillColor:
+                    const Color(0xFF10243B),
+                border: OutlineInputBorder(
+                  borderRadius:
+                      BorderRadius.circular(18),
+                  borderSide: BorderSide.none,
                 ),
               ),
             ),
 
             const SizedBox(height: 22),
 
-            const Text(
-              'Drop Location',
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
+            Card(
+              color: const Color(0xFF10243B),
+              shape: RoundedRectangleBorder(
+                borderRadius:
+                    BorderRadius.circular(20),
               ),
-            ),
-
-            const SizedBox(height: 8),
-
-            TextField(
-              controller: dropController,
-              decoration: InputDecoration(
-                hintText:
-                    'Enter drop location',
-                prefixIcon: const Icon(
-                  Icons.location_on,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius:
-                      BorderRadius.circular(12),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 25),
-
-            const Card(
-              child: ListTile(
+              child: const ListTile(
+                contentPadding:
+                    EdgeInsets.all(16),
                 leading: Icon(
                   Icons.directions_car,
-                  size: 42,
+                  size: 45,
+                  color: Color(0xFF1687FF),
                 ),
                 title: Text(
                   'Maruti Ertiga',
@@ -644,14 +724,7 @@ class _BookingPageState
                   ),
                 ),
                 subtitle: Text(
-                  'HR RIDE • West Bengal',
-                ),
-                trailing: Text(
-                  '22 km/l',
-                  style: TextStyle(
-                    fontWeight:
-                        FontWeight.bold,
-                  ),
+                  'HR RIDE • West Bengal • 22 km/l',
                 ),
               ),
             ),
@@ -660,9 +733,17 @@ class _BookingPageState
 
             SizedBox(
               width: double.infinity,
-              height: 55,
+              height: 58,
               child: ElevatedButton(
                 onPressed: confirmBooking,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      const Color(0xFF1687FF),
+                  shape: RoundedRectangleBorder(
+                    borderRadius:
+                        BorderRadius.circular(18),
+                  ),
+                ),
                 child: const Text(
                   'CONFIRM BOOKING',
                   style: TextStyle(
