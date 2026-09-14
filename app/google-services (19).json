@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "383829745014",
+    "project_id": "hr-ride",
+    "storage_bucket": "hr-ride.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:383829745014:android:a562a39252e74929396e57",
+        "android_client_info": {
+          "package_name": "com.hrride.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "383829745014-hv77lc9f57ac5p8l4p7bsuqun2hcbk4j.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.hrride.app",
+            "certificate_hash": "ec32a282c5173ff53a208b8ab9d0b7787e134500"
+          }
+        },
+        {
+          "client_id": "383829745014-1m58ttp9dj4dqike8ot15uva7vnbajua.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCN2m_P5U6Ek8XDkMo1MHsUJo4Y7YwXmjU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "383829745014-1m58ttp9dj4dqike8ot15uva7vnbajua.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
