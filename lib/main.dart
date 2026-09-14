@@ -634,8 +634,70 @@ class BookingPage extends StatefulWidget {
 class _BookingPageState extends State<BookingPage> {
   final pickupController = TextEditingController();
   final dropController = TextEditingController();
+  final distanceController = TextEditingController();
+  final holdingController = TextEditingController(text: '0');
 
   bool loading = false;
+  String vehicleType = 'AC';
+  DateTime? travelDate;
+
+  static const double acRate = 20;
+  static const double nonAcRate = 17;
+  static const double minimumKm = 200;
+  static const double holdingRate = 100;
+
+  double get rate => vehicleType == 'AC' ? acRate : nonAcRate;
+
+  double get enteredKm {
+    return double.tryParse(distanceController.text.trim()) ?? 0;
+  }
+
+  double get holdingHours {
+    return double.tryParse(holdingController.text.trim()) ?? 0;
+  }
+
+  double get chargeableKm {
+    if (enteredKm <= 0) return 0;
+    return enteredKm < minimumKm ? minimumKm : enteredKm;
+  }
+
+  double get distanceFare {
+    return chargeableKm * rate;
+  }
+
+  double get holdingFare {
+    return holdingHours * holdingRate;
+  }
+
+  double get totalFare {
+    return distanceFare + holdingFare;
+  }
+
+  double get advanceAmount {
+    return totalFare * 0.30;
+  }
+
+  double get balanceAmount {
+    return totalFare * 0.70;
+  }
+
+  Future<void> selectTravelDate() async {
+    final now = DateTime.now();
+
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: now,
+      firstDate: now,
+      lastDate: DateTime(now.year + 2),
+      helpText: 'Select Travel Date',
+    );
+
+    if (selected != null && mounted) {
+      setState(() {
+        travelDate = selected;
+      });
+    }
+  }
 
   Future<void> confirmBooking() async {
     final pickup = pickupController.text.trim();
@@ -643,6 +705,21 @@ class _BookingPageState extends State<BookingPage> {
 
     if (pickup.isEmpty || drop.isEmpty) {
       showError('Please enter pickup and drop location');
+      return;
+    }
+
+    if (enteredKm <= 0) {
+      showError('Please enter distance in KM');
+      return;
+    }
+
+    if (travelDate == null) {
+      showError('Please select travel date');
+      return;
+    }
+
+    if (holdingHours < 0) {
+      showError('Invalid holding hours');
       return;
     }
 
@@ -663,11 +740,28 @@ class _BookingPageState extends State<BookingPage> {
           .add({
         'userId': user.uid,
         'userPhone': user.phoneNumber ?? '',
+        'userName': user.displayName ?? '',
+        'userEmail': user.email ?? '',
         'pickup': pickup,
         'drop': drop,
+        'travelDate': Timestamp.fromDate(travelDate!),
         'vehicle': 'Maruti Ertiga',
+        'vehicleType': vehicleType,
         'mileage': '22 km/l',
         'region': 'West Bengal',
+        'distanceKm': enteredKm,
+        'chargeableKm': chargeableKm,
+        'ratePerKm': rate,
+        'holdingHours': holdingHours,
+        'holdingRate': holdingRate,
+        'distanceFare': distanceFare,
+        'holdingFare': holdingFare,
+        'totalAmount': totalFare,
+        'advanceAmount': advanceAmount,
+        'balanceAmount': balanceAmount,
+        'paymentStatus': 'Pending',
+        'paymentId': '',
+        'orderId': '',
         'status': 'Pending',
         'createdAt': FieldValue.serverTimestamp(),
       });
@@ -679,11 +773,18 @@ class _BookingPageState extends State<BookingPage> {
       showDialog(
         context: context,
         builder: (_) => AlertDialog(
-          title: const Text('Booking Confirmed'),
+          title: const Text('Booking Submitted'),
           content: Text(
-            'Pickup: $pickup\n\n'
+            'Pickup: $pickup\n'
             'Drop: $drop\n\n'
             'Vehicle: Maruti Ertiga\n'
+            'Type: $vehicleType\n'
+            'Distance: ${enteredKm.toStringAsFixed(0)} km\n'
+            'Chargeable: ${chargeableKm.toStringAsFixed(0)} km\n'
+            'Holding: ${holdingHours.toStringAsFixed(1)} hour\n\n'
+            'Total: ₹${totalFare.toStringAsFixed(0)}\n'
+            'Advance (30%): ₹${advanceAmount.toStringAsFixed(0)}\n'
+            'Balance (70%): ₹${balanceAmount.toStringAsFixed(0)}\n\n'
             'Status: Pending',
           ),
           actions: [
@@ -697,6 +798,408 @@ class _BookingPageState extends State<BookingPage> {
           ],
         ),
       );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() => loading = false);
+
+      showError('Booking Error:\n$e');
+    }
+  }
+
+  void showError(String text) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(text)),
+    );
+  }
+
+  String formatDate(DateTime? date) {
+    if (date == null) return 'Select travel date';
+
+    return '${date.day.toString().padLeft(2, '0')}/'
+        '${date.month.toString().padLeft(2, '0')}/'
+        '${date.year}';
+  }
+
+  @override
+  void dispose() {
+    pickupController.dispose();
+    dropController.dispose();
+    distanceController.dispose();
+    holdingController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Book Your Ride'),
+        centerTitle: true,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            const SizedBox(height: 10),
+
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Where are you going?',
+                style: TextStyle(
+                  fontSize: 27,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 25),
+
+            TextField(
+              controller: pickupController,
+              decoration: InputDecoration(
+                labelText: 'Pickup Location',
+                hintText: 'Enter pickup',
+                prefixIcon: const Icon(Icons.my_location),
+                filled: true,
+                fillColor: const Color(0xFF10243B),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(18),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 18),
+
+            TextField(
+              controller: dropController,
+              decoration: InputDecoration(
+                labelText: 'Drop Location',
+                hintText: 'Enter destination',
+                prefixIcon: const Icon(Icons.location_on),
+                filled: true,
+                fillColor: const Color(0xFF10243B),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(18),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 18),
+
+            // AC / NON-AC
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Select Vehicle Type',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(.75),
+                  fontSize: 15,
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            Row(
+              children: [
+                Expanded(
+                  child: ChoiceChip(
+                    label: const SizedBox(
+                      width: double.infinity,
+                      child: Center(
+                        child: Text(
+                          'AC • ₹20/km',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                    selected: vehicleType == 'AC',
+                    onSelected: (_) {
+                      setState(() {
+                        vehicleType = 'AC';
+                      });
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ChoiceChip(
+                    label: const SizedBox(
+                      width: double.infinity,
+                      child: Center(
+                        child: Text(
+                          'Non-AC • ₹17/km',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                    selected: vehicleType == 'Non-AC',
+                    onSelected: (_) {
+                      setState(() {
+                        vehicleType = 'Non-AC';
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 18),
+
+            // DISTANCE
+            TextField(
+              controller: distanceController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                labelText: 'Distance (KM)',
+                hintText: 'Example: 250',
+                prefixIcon: const Icon(Icons.route),
+                suffixText: 'KM',
+                filled: true,
+                fillColor: const Color(0xFF10243B),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(18),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Minimum billing: 200 KM',
+                style: TextStyle(
+                  color: Colors.orangeAccent,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 18),
+
+            // HOLDING
+            TextField(
+              controller: holdingController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                labelText: 'Holding Hours',
+                hintText: 'Example: 2',
+                prefixIcon: const Icon(Icons.access_time),
+                suffixText: '₹100/hour',
+                filled: true,
+                fillColor: const Color(0xFF10243B),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(18),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 18),
+
+            // DATE
+            InkWell(
+              onTap: selectTravelDate,
+              borderRadius: BorderRadius.circular(18),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10243B),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.calendar_month,
+                      color: Color(0xFF1687FF),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Travel Date',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.white70,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            formatDate(travelDate),
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.arrow_forward_ios, size: 17),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 25),
+
+            // FARE SUMMARY
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [
+                    Color(0xFF10243B),
+                    Color(0xFF0B2942),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(22),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'FARE SUMMARY',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+
+                  const SizedBox(height: 15),
+
+                  _fareRow(
+                    'Rate',
+                    '₹${rate.toStringAsFixed(0)}/km',
+                  ),
+
+                  _fareRow(
+                    'Chargeable Distance',
+                    '${chargeableKm.toStringAsFixed(0)} km',
+                  ),
+
+                  _fareRow(
+                    'Distance Fare',
+                    '₹${distanceFare.toStringAsFixed(0)}',
+                  ),
+
+                  _fareRow(
+                    'Holding',
+                    '₹${holdingFare.toStringAsFixed(0)}',
+                  ),
+
+                  const Divider(height: 25),
+
+                  _fareRow(
+                    'TOTAL',
+                    '₹${totalFare.toStringAsFixed(0)}',
+                    bold: true,
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  _fareRow(
+                    'Advance • 30%',
+                    '₹${advanceAmount.toStringAsFixed(0)}',
+                  ),
+
+                  _fareRow(
+                    'Balance • 70%',
+                    '₹${balanceAmount.toStringAsFixed(0)}',
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 28),
+
+            SizedBox(
+              width: double.infinity,
+              height: 58,
+              child: ElevatedButton(
+                onPressed: loading ? null : confirmBooking,
+                child: loading
+                    ? const CircularProgressIndicator(
+                        color: Colors.white,
+                      )
+                    : const Text(
+                        'CONFIRM BOOKING',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+              ),
+            ),
+
+            const SizedBox(height: 15),
+
+            Text(
+              '30% advance payment will be collected online.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white.withOpacity(.55),
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _fareRow(
+    String title,
+    String value, {
+    bool bold = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(
+                fontWeight:
+                    bold ? FontWeight.bold : FontWeight.normal,
+                fontSize: bold ? 17 : 14,
+              ),
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight:
+                  bold ? FontWeight.bold : FontWeight.w600,
+              fontSize: bold ? 19 : 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
     } catch (e) {
       if (!mounted) return;
 
