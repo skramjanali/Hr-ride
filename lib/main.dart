@@ -20,7 +20,6 @@ Future<void> main() async {
     debugPrint('Google Sign-In initialization error: $e');
   }
 
-  // IMPORTANT: App will open even if Firebase has a configuration problem
   runApp(const HRRideApp());
 }
 
@@ -110,7 +109,9 @@ class _LoginPageState extends State<LoginPage> {
       if (!mounted) return;
 
       showError(
-        'Firebase Error:\n${e.code}\n${e.message ?? ''}',
+        'Firebase Error:\n'
+        '${e.code}\n'
+        '${e.message ?? ''}',
       );
     } catch (e) {
       if (!mounted) return;
@@ -132,13 +133,36 @@ class _LoginPageState extends State<LoginPage> {
   // ==========================================================
 
   Future<void> sendOTP() async {
-    final phone = phoneController.text.trim();
+    final input = phoneController.text.trim();
 
-    if (phone.length != 10) {
-      showError(
-        'Enter a valid 10 digit mobile number',
-      );
-      return;
+    // যদি + দিয়ে international number দেওয়া হয়,
+    // তাহলে সেটাই সরাসরি Firebase-এ যাবে।
+    //
+    // যেমন:
+    // +16505551234
+    //
+    // আর যদি শুধু 10 digit India number দেওয়া হয়,
+    // তাহলে +91 automatically যোগ হবে।
+    final phone = input.startsWith('+')
+        ? input
+        : '+91$input';
+
+    // International/test number validation
+    if (input.startsWith('+')) {
+      if (input.length < 8) {
+        showError(
+          'Enter a valid phone number',
+        );
+        return;
+      }
+    } else {
+      // India mobile number validation
+      if (input.length != 10) {
+        showError(
+          'Enter a valid 10 digit mobile number',
+        );
+        return;
+      }
     }
 
     if (loading) return;
@@ -149,7 +173,11 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       await FirebaseAuth.instance.verifyPhoneNumber(
-        phoneNumber: '+91$phone',
+        phoneNumber: phone,
+
+        // ------------------------------------------------------
+        // AUTOMATIC VERIFICATION
+        // ------------------------------------------------------
 
         verificationCompleted:
             (PhoneAuthCredential credential) async {
@@ -173,10 +201,16 @@ class _LoginPageState extends State<LoginPage> {
             });
 
             showError(
-              'Firebase Error:\n${e.code}\n${e.message ?? ''}',
+              'Firebase Error:\n'
+              '${e.code}\n'
+              '${e.message ?? ''}',
             );
           }
         },
+
+        // ------------------------------------------------------
+        // VERIFICATION FAILED
+        // ------------------------------------------------------
 
         verificationFailed:
             (FirebaseAuthException e) {
@@ -192,6 +226,10 @@ class _LoginPageState extends State<LoginPage> {
             '${e.message ?? ''}',
           );
         },
+
+        // ------------------------------------------------------
+        // CODE SENT
+        // ------------------------------------------------------
 
         codeSent: (
           String id,
@@ -214,6 +252,10 @@ class _LoginPageState extends State<LoginPage> {
             ),
           );
         },
+
+        // ------------------------------------------------------
+        // AUTO RETRIEVAL TIMEOUT
+        // ------------------------------------------------------
 
         codeAutoRetrievalTimeout:
             (String id) {
@@ -335,6 +377,10 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  // ==========================================================
+  // DISPOSE
+  // ==========================================================
+
   @override
   void dispose() {
     phoneController.dispose();
@@ -406,14 +452,12 @@ class _LoginPageState extends State<LoginPage> {
               // PHONE NUMBER
               TextField(
                 controller: phoneController,
-                keyboardType:
-                    TextInputType.phone,
-                maxLength: 10,
+                keyboardType: TextInputType.phone,
+                maxLength: 15,
                 decoration: InputDecoration(
                   labelText: 'Mobile Number',
                   hintText:
-                      'Enter 10 digit number',
-                  prefixText: '+91 ',
+                      '10 digit number or +country code',
                   prefixIcon: const Icon(
                     Icons.phone,
                   ),
@@ -854,6 +898,10 @@ class _BookingPageState
       },
     );
   }
+
+  // ==========================================================
+  // DISPOSE
+  // ==========================================================
 
   @override
   void dispose() {
