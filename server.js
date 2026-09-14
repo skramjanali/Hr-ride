@@ -1,137 +1,232 @@
-
-const express = require('express');
-const crypto = require('crypto');
+const express = require("express");
+const cors = require("cors");
+const crypto = require("crypto");
+require("dotenv").config();
 
 const app = express();
-app.use(express.json());
+const PORT = process.env.PORT || 10000;
 
-const PORT = process.env.PORT || 8080;
-const drivers = new Map();
-const rides = new Map();
+const CASHFREE_ENV = process.env.CASHFREE_ENV || "sandbox";
+const CASHFREE_CLIENT_ID = process.env.CASHFREE_CLIENT_ID;
+const CASHFREE_CLIENT_SECRET = process.env.CASHFREE_CLIENT_SECRET;
+const CASHFREE_API_VERSION = process.env.CASHFREE_API_VERSION || "2025-01-01";
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL;
 
-const transitions = { requested:['assigned','cancelled'], assigned:['arriving','cancelled'], arriving:['started','cancelled'], started:['completed'], completed:[], cancelled:[] };
+const CASHFREE_BASE_URL =
+  CASHFREE_ENV === "production"
+    ? "https://api.cashfree.com/pg"
+    : "https://sandbox.cashfree.com/pg";
 
-function distanceKm(aLat, aLng, bLat, bLng) {
-  const R = 6371;
-  const dLat = (bLat-aLat) * Math.PI/180;
-  const dLng = (bLng-aLng) * Math.PI/180;
-  const x = Math.sin(dLat/2)**2 +
-    Math.cos(aLat*Math.PI/180)*Math.cos(bLat*Math.PI/180)*
-    Math.sin(dLng/2)**2;
-  return 2*R*Math.asin(Math.sqrt(x));
+app.use(cors());
+
+function requireConfig() {
+  if (!CASHFREE_CLIENT_ID || !CASHFREE_CLIENT_SECRET) {
+    throw new Error("Cashfree API credentials are not configured.");
+  }
 }
 
-app.get('/health', (req,res) => res.json({ok:true, service:'HR RIDE matching backend'}));
-
-app.post('/drivers/online', (req,res) => {
-  const {driverId, name, lat, lng, vehicle='Maruti Ertiga'} = req.body;
-  if (!driverId || !Number.isFinite(lat) || !Number.isFinite(lng))
-    return res.status(400).json({error:'driverId, lat and lng are required'});
-  drivers.set(driverId, {driverId,name:name||'HR RIDE Driver',lat,lng,vehicle,online:true,updatedAt:Date.now()});
-  res.json(drivers.get(driverId));
-});
-
-app.post('/drivers/offline', (req,res) => {
-  const {driverId} = req.body;
-  if (drivers.has(driverId)) drivers.get(driverId).online = false;
-  res.json({ok:true});
-});
-
-app.patch('/drivers/:driverId/location', (req,res) => {
-  const d = drivers.get(req.params.driverId);
-  if (!d) return res.status(404).json({error:'Driver not found'});
-  const {lat,lng} = req.body;
-  if (!Number.isFinite(lat) || !Number.isFinite(lng))
-    return res.status(400).json({error:'lat and lng are required'});
-  d.lat=lat; d.lng=lng; d.updatedAt=Date.now(); d.online=true;
-  res.json(d);
-});
-
-app.post('/rides', (req,res) => {
-  const {pickup,destination,distanceKm=0,fare=0,pickupLat,pickupLng} = req.body;
-  const id = 'ride_' + crypto.randomUUID();
-  const ride = {
-    id,pickup,destination,distanceKm,fare,
-    pickupLat,pickupLng,
-    status:'requested', driverId:null,
-    createdAt:Date.now(), updatedAt:Date.now()
+function cashfreeHeaders(extra = {}) {
+  requireConfig();
+  return {
+    "Content-Type": "application/json",
+    "x-api-version": CASHFREE_API_VERSION,
+    "x-client-id": CASHFREE_CLIENT_ID,
+    "x-client-secret": CASHFREE_CLIENT_SECRET,
+    ...extra,
   };
-  rides.set(id, ride);
-  if (Number.isFinite(pickupLat) && Number.isFinite(pickupLng)) {
-    let best=null, bestKm=Infinity;
-    for (const d of drivers.values()) {
-      if (!d.online) continue;
-      const km = distanceKm(pickupLat,pickupLng,d.lat,d.lng);
-      if (km < bestKm) { best=d; bestKm=km; }
-    }
-    if (best) {
-      ride.driverId=best.driverId;
-      ride.driverDistanceKm=Number(bestKm.toFixed(2));
-      ride.status='assigned';
+}
+
+function makeOrderId(bookingId) {
+  const safe = String(bookingId || "booking")
+    .replace(/[^a-zA-Z0-9_-]/g, "")
+    .slice(0, 30);
+  return `hr_${safe}_${Date.now()}`;
+}
+
+// Webhook route must receive the raw body for signature verification.
+app.post(
+  "/api/webhooks/cashfree",
+  express.raw({ type: "application/json" }),
+  (req, res) => {
+    try {
+      requireConfig();
+
+      const signature = req.headers["x-webhook-signature"];
+      const timestamp = req.headers["x-webhook-timestamp"];
+
+      if (!signature || !timestamp) {
+        return res.status(400).json({ ok: false, error: "Missing webhook signature." });
+      }
+
+      const rawBody = req.body.toString("utf8");
+      const signedPayload = `${timestamp}${rawBody}`;
+
+      const expected = crypto
+        .createHmac("sha256", CASHFREE_CLIENT_SECRET)
+        .update(signedPayload)
+        .digest("base64");
+
+      const a = Buffer.from(String(signature));
+      const b = Buffer.from(expected);
+
+      if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+        return res.status(401).json({ ok: false, error: "Invalid webhook signature." });
+      }
+
+      // Webhook is authenticated. For production, connect this event to
+      // your Firestore booking record using the order_id in the payload.
+      const event = JSON.parse(rawBody);
+      console.log("Verified Cashfree webhook:", JSON.stringify(event));
+
+      return res.json({ ok: true });
+    } catch (error) {
+      console.error("Webhook error:", error);
+      return res.status(500).json({ ok: false, error: "Webhook processing failed." });
     }
   }
-  res.status(201).json(ride);
+);
+
+app.use(express.json({ limit: "1mb" }));
+
+app.get("/", (req, res) => {
+  res.json({
+    service: "HR RIDE Cashfree Backend",
+    status: "ok",
+  });
 });
 
-app.get('/rides/:id', (req,res) => {
-  const ride=rides.get(req.params.id);
-  if (!ride) return res.status(404).json({error:'Ride not found'});
-  const driver=ride.driverId ? drivers.get(ride.driverId) : null;
-  res.json({...ride, driver: driver || null});
-});
-
-app.patch('/rides/:id/status', (req,res) => {
-  const ride=rides.get(req.params.id);
-  if (!ride) return res.status(404).json({error:'Ride not found'});
-  const next=req.body.status;
-  if (!Object.prototype.hasOwnProperty.call(transitions,next)) return res.status(400).json({error:'Invalid status'});
-  if (!(transitions[ride.status]||[]).includes(next)) return res.status(409).json({error:`Invalid transition ${ride.status} -> ${next}`});
-  ride.status=next; ride.updatedAt=Date.now();
-  res.json(ride);
-});
-
-app.get('/drivers/nearby', (req,res) => {
-  const lat=Number(req.query.lat), lng=Number(req.query.lng);
-  if (!Number.isFinite(lat)||!Number.isFinite(lng))
-    return res.status(400).json({error:'lat and lng query params are required'});
-  const result=[...drivers.values()].filter(d=>d.online).map(d=>({
-    ...d, distanceKm:Number(distanceKm(lat,lng,d.lat,d.lng).toFixed(2))
-  })).sort((a,b)=>a.distanceKm-b.distanceKm);
-  res.json(result);
-});
-
-
-// Razorpay: keep RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET only on the server.
-// Client receives only the order id and uses the public key id in checkout.
-app.post('/payments/order', async (req,res) => {
+// Create a Cashfree order. The server calculates the 30% advance.
+app.post("/api/create-order", async (req, res) => {
   try {
-    const {amountPaise, receipt, notes={}} = req.body;
-    if (!Number.isInteger(amountPaise) || amountPaise <= 0)
-      return res.status(400).json({error:'amountPaise must be a positive integer'});
-    const keyId=process.env.RAZORPAY_KEY_ID;
-    const keySecret=process.env.RAZORPAY_KEY_SECRET;
-    if (!keyId || !keySecret)
-      return res.status(503).json({error:'Razorpay server credentials are not configured'});
-    const auth=Buffer.from(`${keyId}:${keySecret}`).toString('base64');
-    const rr=await fetch('https://api.razorpay.com/v1/orders',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':`Basic ${auth}`},
-      body:JSON.stringify({amount:amountPaise,currency:'INR',receipt:receipt||`hr_${Date.now()}`,notes})
+    const {
+      bookingId,
+      totalAmount,
+      customerId,
+      customerName,
+      customerEmail,
+      customerPhone,
+    } = req.body || {};
+
+    const total = Number(totalAmount);
+
+    if (!Number.isFinite(total) || total <= 0) {
+      return res.status(400).json({ error: "totalAmount must be a positive number." });
+    }
+
+    if (!customerPhone) {
+      return res.status(400).json({ error: "customerPhone is required." });
+    }
+
+    if (!PUBLIC_BASE_URL) {
+      return res.status(500).json({ error: "PUBLIC_BASE_URL is not configured." });
+    }
+
+    const advanceAmount = Math.round(total * 0.30 * 100) / 100;
+    const balanceAmount = Math.round((total - advanceAmount) * 100) / 100;
+    const orderId = makeOrderId(bookingId);
+
+    const payload = {
+      order_id: orderId,
+      order_amount: advanceAmount,
+      order_currency: "INR",
+      customer_details: {
+        customer_id: String(customerId || `hr_user_${Date.now()}`),
+        customer_name: String(customerName || "HR RIDE Customer").slice(0, 100),
+        customer_email: String(customerEmail || "customer@hrride.app").slice(0, 100),
+        customer_phone: String(customerPhone).replace(/\s+/g, "").slice(-15),
+      },
+      order_meta: {
+        return_url: `${PUBLIC_BASE_URL}/payment-return?order_id=${encodeURIComponent(orderId)}`,
+        notify_url: `${PUBLIC_BASE_URL}/api/webhooks/cashfree`,
+      },
+      order_note: "HR RIDE booking advance (30%)",
+      order_tags: {
+        app: "HR_RIDE",
+        booking_id: String(bookingId || ""),
+        total_amount: total.toFixed(2),
+        advance_amount: advanceAmount.toFixed(2),
+        balance_amount: balanceAmount.toFixed(2),
+      },
+    };
+
+    const response = await fetch(`${CASHFREE_BASE_URL}/orders`, {
+      method: "POST",
+      headers: cashfreeHeaders(),
+      body: JSON.stringify(payload),
     });
-    const data=await rr.json();
-    if(!rr.ok) return res.status(rr.status).json(data);
-    res.json({id:data.id, amount:data.amount, currency:data.currency, keyId});
-  } catch(e) { res.status(500).json({error:'Unable to create payment order'}); }
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error("Cashfree create-order error:", response.status, data);
+      return res.status(response.status).json({
+        error: "Cashfree order creation failed.",
+        details: data,
+      });
+    }
+
+    return res.json({
+      orderId: data.order_id,
+      paymentSessionId: data.payment_session_id,
+      totalAmount: total,
+      advanceAmount,
+      balanceAmount,
+      currency: "INR",
+    });
+  } catch (error) {
+    console.error("Create order error:", error);
+    return res.status(500).json({ error: error.message || "Server error." });
+  }
 });
 
-app.post('/payments/verify', (req,res) => {
-  const {orderId,paymentId,signature}=req.body;
-  const secret=process.env.RAZORPAY_KEY_SECRET;
-  if(!secret) return res.status(503).json({error:'Razorpay server credentials are not configured'});
-  if(!orderId||!paymentId||!signature) return res.status(400).json({error:'Missing payment verification fields'});
-  const expected=crypto.createHmac('sha256',secret).update(`${orderId}|${paymentId}`).digest('hex');
-  const ok=crypto.timingSafeEqual(Buffer.from(expected),Buffer.from(signature));
-  res.json({verified:ok});
+// Server-side order verification. Do not trust the Flutter callback alone.
+app.get("/api/order-status/:orderId", async (req, res) => {
+  try {
+    const orderId = req.params.orderId;
+
+    const response = await fetch(
+      `${CASHFREE_BASE_URL}/orders/${encodeURIComponent(orderId)}`,
+      {
+        method: "GET",
+        headers: cashfreeHeaders(),
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return res.status(response.status).json({
+        error: "Cashfree order status lookup failed.",
+        details: data,
+      });
+    }
+
+    return res.json({
+      orderId: data.order_id,
+      orderStatus: data.order_status,
+      orderAmount: data.order_amount,
+      orderCurrency: data.order_currency,
+      paymentStatus: data.order_status === "PAID" ? "PAID" : data.order_status,
+    });
+  } catch (error) {
+    console.error("Order status error:", error);
+    return res.status(500).json({ error: error.message || "Server error." });
+  }
 });
 
-app.listen(PORT,()=>console.log(`HR RIDE backend listening on ${PORT}`));
+app.get("/payment-return", (req, res) => {
+  res.send(`
+    <html>
+      <head><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+      <body style="font-family:Arial;padding:30px">
+        <h2>HR RIDE</h2>
+        <p>Payment return received.</p>
+        <p>You can return to the HR RIDE app.</p>
+      </body>
+    </html>
+  `);
+});
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`HR RIDE backend listening on port ${PORT}`);
+});
