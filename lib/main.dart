@@ -22,10 +22,6 @@ Future<void> main() async {
   runApp(const HRRideApp());
 }
 
-// ============================================================
-// APP
-// ============================================================
-
 class HRRideApp extends StatelessWidget {
   const HRRideApp({super.key});
 
@@ -49,7 +45,7 @@ class HRRideApp extends StatelessWidget {
 }
 
 // ============================================================
-// LOGIN PAGE
+// LOGIN
 // ============================================================
 
 class LoginPage extends StatefulWidget {
@@ -67,102 +63,24 @@ class _LoginPageState extends State<LoginPage> {
   bool loading = false;
   String verificationId = '';
 
-  // ==========================================================
-  // GOOGLE LOGIN
-  // ==========================================================
-
-  Future<void> googleLogin() async {
-    if (loading) return;
-
-    setState(() {
-      loading = true;
-    });
-
-    try {
-      final GoogleSignInAccount googleUser =
-          await GoogleSignIn.instance.authenticate();
-
-      final GoogleSignInAuthentication googleAuth =
-          googleUser.authentication;
-
-      final String? idToken = googleAuth.idToken;
-
-      if (idToken == null || idToken.isEmpty) {
-        throw Exception('Google ID token is missing.');
-      }
-
-      final credential = GoogleAuthProvider.credential(
-        idToken: idToken,
-      );
-
-      await FirebaseAuth.instance.signInWithCredential(
-        credential,
-      );
-
-      if (!mounted) return;
-
-      goHome();
-    } on GoogleSignInException catch (e) {
-      if (!mounted) return;
-
-      showError(
-        'Google Login Error:\n${e.code}',
-      );
-    } on FirebaseAuthException catch (e) {
-      if (!mounted) return;
-
-      showError(
-        'Firebase Error:\n'
-        '${e.code}\n'
-        '${e.message ?? ''}',
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      showError(
-        'Google Login Error:\n$e',
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          loading = false;
-        });
-      }
-    }
-  }
-
-  // ==========================================================
-  // SEND OTP
-  // ==========================================================
-
   Future<void> sendOTP() async {
     final input = phoneController.text.trim();
 
-    final phone = input.startsWith('+')
-        ? input
-        : '+91$input';
+    if (input.isEmpty) {
+      showError('Enter mobile number');
+      return;
+    }
 
-    if (input.startsWith('+')) {
-      if (input.length < 8) {
-        showError(
-          'Enter a valid phone number',
-        );
-        return;
-      }
-    } else {
-      if (input.length != 10) {
-        showError(
-          'Enter a valid 10 digit mobile number',
-        );
-        return;
-      }
+    final phone = input.startsWith('+') ? input : '+91$input';
+
+    if (!phone.startsWith('+')) {
+      showError('Enter valid phone number');
+      return;
     }
 
     if (loading) return;
 
-    setState(() {
-      loading = true;
-    });
+    setState(() => loading = true);
 
     try {
       await FirebaseAuth.instance.verifyPhoneNumber(
@@ -177,33 +95,20 @@ class _LoginPageState extends State<LoginPage> {
 
             if (!mounted) return;
 
-            setState(() {
-              loading = false;
-            });
-
+            setState(() => loading = false);
             goHome();
-          } on FirebaseAuthException catch (e) {
+          } catch (e) {
             if (!mounted) return;
 
-            setState(() {
-              loading = false;
-            });
-
-            showError(
-              'Firebase Error:\n'
-              '${e.code}\n'
-              '${e.message ?? ''}',
-            );
+            setState(() => loading = false);
+            showError('Firebase Error:\n$e');
           }
         },
 
-        verificationFailed:
-            (FirebaseAuthException e) {
+        verificationFailed: (FirebaseAuthException e) {
           if (!mounted) return;
 
-          setState(() {
-            loading = false;
-          });
+          setState(() => loading = false);
 
           showError(
             'Firebase OTP Error:\n'
@@ -226,73 +131,42 @@ class _LoginPageState extends State<LoginPage> {
 
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text(
-                'OTP sent successfully',
-              ),
+              content: Text('OTP sent successfully'),
             ),
           );
         },
 
-        codeAutoRetrievalTimeout:
-            (String id) {
+        codeAutoRetrievalTimeout: (String id) {
           verificationId = id;
         },
-      );
-    } on FirebaseAuthException catch (e) {
-      if (!mounted) return;
-
-      setState(() {
-        loading = false;
-      });
-
-      showError(
-        'Firebase Error:\n'
-        '${e.code}\n'
-        '${e.message ?? ''}',
       );
     } catch (e) {
       if (!mounted) return;
 
-      setState(() {
-        loading = false;
-      });
-
-      showError(
-        'OTP Error:\n$e',
-      );
+      setState(() => loading = false);
+      showError('OTP Error:\n$e');
     }
   }
-
-  // ==========================================================
-  // VERIFY OTP
-  // ==========================================================
 
   Future<void> verifyOTP() async {
     final otp = otpController.text.trim();
 
     if (verificationId.isEmpty) {
-      showError(
-        'Please request OTP again.',
-      );
+      showError('Please request OTP again.');
       return;
     }
 
     if (otp.length != 6) {
-      showError(
-        'Enter 6 digit OTP',
-      );
+      showError('Enter 6 digit OTP');
       return;
     }
 
     if (loading) return;
 
-    setState(() {
-      loading = true;
-    });
+    setState(() => loading = true);
 
     try {
-      final credential =
-          PhoneAuthProvider.credential(
+      final credential = PhoneAuthProvider.credential(
         verificationId: verificationId,
         smsCode: otp,
       );
@@ -305,31 +179,59 @@ class _LoginPageState extends State<LoginPage> {
 
       goHome();
     } on FirebaseAuthException catch (e) {
-      if (!mounted) return;
-
       showError(
         'Firebase Error:\n'
         '${e.code}\n'
         '${e.message ?? ''}',
       );
     } catch (e) {
-      if (!mounted) return;
-
-      showError(
-        'OTP Verification Error:\n$e',
-      );
+      showError('OTP Verification Error:\n$e');
     } finally {
       if (mounted) {
-        setState(() {
-          loading = false;
-        });
+        setState(() => loading = false);
       }
     }
   }
 
-  // ==========================================================
-  // ERROR
-  // ==========================================================
+  Future<void> googleLogin() async {
+    if (loading) return;
+
+    setState(() => loading = true);
+
+    try {
+      final GoogleSignInAccount googleUser =
+          await GoogleSignIn.instance.authenticate();
+
+      final GoogleSignInAuthentication googleAuth =
+          googleUser.authentication;
+
+      final idToken = googleAuth.idToken;
+
+      if (idToken == null || idToken.isEmpty) {
+        throw Exception('Google ID token is missing.');
+      }
+
+      final credential = GoogleAuthProvider.credential(
+        idToken: idToken,
+      );
+
+      await FirebaseAuth.instance.signInWithCredential(
+        credential,
+      );
+
+      if (!mounted) return;
+
+      goHome();
+    } catch (e) {
+      if (!mounted) return;
+
+      showError('Google Login Error:\n$e');
+    } finally {
+      if (mounted) {
+        setState(() => loading = false);
+      }
+    }
+  }
 
   void showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -339,10 +241,6 @@ class _LoginPageState extends State<LoginPage> {
       ),
     );
   }
-
-  // ==========================================================
-  // GO HOME
-  // ==========================================================
 
   void goHome() {
     Navigator.pushReplacement(
@@ -360,10 +258,6 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  // ==========================================================
-  // LOGIN UI
-  // ==========================================================
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -379,8 +273,7 @@ class _LoginPageState extends State<LoginPage> {
                 height: 110,
                 decoration: BoxDecoration(
                   color: const Color(0xFF1687FF),
-                  borderRadius:
-                      BorderRadius.circular(30),
+                  borderRadius: BorderRadius.circular(30),
                   boxShadow: const [
                     BoxShadow(
                       color: Color(0x661687FF),
@@ -414,7 +307,6 @@ class _LoginPageState extends State<LoginPage> {
                 style: TextStyle(
                   color: Color(0xFFB8C7D9),
                   letterSpacing: 1.5,
-                  fontSize: 13,
                 ),
               ),
 
@@ -423,22 +315,15 @@ class _LoginPageState extends State<LoginPage> {
               TextField(
                 controller: phoneController,
                 keyboardType: TextInputType.phone,
-                maxLength: 15,
                 decoration: InputDecoration(
                   labelText: 'Mobile Number',
-                  hintText:
-                      '10 digit or +country code',
-                  prefixIcon:
-                      const Icon(Icons.phone),
-                  counterText: '',
+                  hintText: '10 digit number',
+                  prefixIcon: const Icon(Icons.phone),
                   filled: true,
-                  fillColor:
-                      const Color(0xFF10243B),
+                  fillColor: const Color(0xFF10243B),
                   border: OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(18),
-                    borderSide:
-                        BorderSide.none,
+                    borderRadius: BorderRadius.circular(18),
+                    borderSide: BorderSide.none,
                   ),
                 ),
               ),
@@ -448,24 +333,18 @@ class _LoginPageState extends State<LoginPage> {
 
                 TextField(
                   controller: otpController,
-                  keyboardType:
-                      TextInputType.number,
+                  keyboardType: TextInputType.number,
                   maxLength: 6,
                   decoration: InputDecoration(
                     labelText: 'OTP',
-                    hintText:
-                        'Enter 6 digit OTP',
-                    prefixIcon:
-                        const Icon(Icons.lock),
+                    hintText: 'Enter 6 digit OTP',
+                    prefixIcon: const Icon(Icons.lock),
                     counterText: '',
                     filled: true,
-                    fillColor:
-                        const Color(0xFF10243B),
+                    fillColor: const Color(0xFF10243B),
                     border: OutlineInputBorder(
-                      borderRadius:
-                          BorderRadius.circular(18),
-                      borderSide:
-                          BorderSide.none,
+                      borderRadius: BorderRadius.circular(18),
+                      borderSide: BorderSide.none,
                     ),
                   ),
                 ),
@@ -477,42 +356,25 @@ class _LoginPageState extends State<LoginPage> {
                 width: double.infinity,
                 height: 58,
                 child: ElevatedButton(
-                  onPressed: loading
-                      ? null
-                      : (otpSent
-                          ? verifyOTP
-                          : sendOTP),
-                  style:
-                      ElevatedButton.styleFrom(
-                    backgroundColor:
-                        const Color(0xFF1687FF),
-                    foregroundColor:
-                        Colors.white,
-                    shape:
-                        RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(18),
+                  onPressed:
+                      loading ? null : (otpSent ? verifyOTP : sendOTP),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1687FF),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
                     ),
                   ),
                   child: loading
-                      ? const SizedBox(
-                          width: 25,
-                          height: 25,
-                          child:
-                              CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 3,
-                          ),
+                      ? const CircularProgressIndicator(
+                          color: Colors.white,
                         )
                       : Text(
                           otpSent
                               ? 'VERIFY OTP'
                               : 'CONTINUE WITH OTP',
-                          style:
-                              const TextStyle(
-                            fontSize: 15,
-                            fontWeight:
-                                FontWeight.bold,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                 ),
@@ -522,19 +384,12 @@ class _LoginPageState extends State<LoginPage> {
 
               const Row(
                 children: [
-                  Expanded(
-                    child: Divider(),
-                  ),
+                  Expanded(child: Divider()),
                   Padding(
-                    padding:
-                        EdgeInsets.symmetric(
-                      horizontal: 12,
-                    ),
+                    padding: EdgeInsets.symmetric(horizontal: 12),
                     child: Text('OR'),
                   ),
-                  Expanded(
-                    child: Divider(),
-                  ),
+                  Expanded(child: Divider()),
                 ],
               ),
 
@@ -544,50 +399,13 @@ class _LoginPageState extends State<LoginPage> {
                 width: double.infinity,
                 height: 58,
                 child: OutlinedButton(
-                  onPressed:
-                      loading ? null : googleLogin,
-                  style:
-                      OutlinedButton.styleFrom(
-                    foregroundColor:
-                        Colors.white,
-                    side: const BorderSide(
-                      color: Color(0xFF38506A),
-                    ),
-                    shape:
-                        RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(18),
+                  onPressed: loading ? null : googleLogin,
+                  child: const Text(
+                    'Continue with Google',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                  child: const Row(
-                    mainAxisAlignment:
-                        MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.g_mobiledata,
-                        size: 36,
-                      ),
-                      SizedBox(width: 10),
-                      Text(
-                        'Continue with Google',
-                        style: TextStyle(
-                          fontWeight:
-                              FontWeight.bold,
-                          fontSize: 15,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 35),
-
-              const Text(
-                'Secure login powered by Firebase',
-                style: TextStyle(
-                  color: Color(0xFF71869D),
-                  fontSize: 12,
                 ),
               ),
             ],
@@ -599,17 +417,17 @@ class _LoginPageState extends State<LoginPage> {
 }
 
 // ============================================================
-// HOME PAGE
+// HOME
 // ============================================================
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
-  bool isAdmin() {
-    final user = FirebaseAuth.instance.currentUser;
-    final phone = user?.phoneNumber ?? '';
+  static const String adminPhone = '+919002266005';
 
-    return phone == '+919002266005';
+  bool get isAdmin {
+    final user = FirebaseAuth.instance.currentUser;
+    return user?.phoneNumber == adminPhone;
   }
 
   @override
@@ -618,48 +436,30 @@ class HomePage extends StatelessWidget {
       appBar: AppBar(
         title: const Text(
           'HR RIDE',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
         actions: [
-          if (isAdmin())
+          if (isAdmin)
             IconButton(
-              icon: const Icon(
-                Icons.admin_panel_settings,
-              ),
+              icon: const Icon(Icons.admin_panel_settings),
+              tooltip: 'Admin Panel',
               onPressed: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) =>
-                        const AdminBookingPage(),
+                    builder: (_) => const AdminPanel(),
                   ),
                 );
               },
             ),
-          IconButton(
-            icon: const Icon(
-              Icons.history,
-            ),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      const BookingHistoryPage(),
-                ),
-              );
-            },
-          ),
         ],
       ),
+
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(22),
         child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 20),
 
@@ -687,23 +487,13 @@ class HomePage extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(22),
               decoration: BoxDecoration(
-                gradient:
-                    const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+                gradient: const LinearGradient(
                   colors: [
                     Color(0xFF1687FF),
                     Color(0xFF0B3D78),
                   ],
                 ),
-                borderRadius:
-                    BorderRadius.circular(25),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x441687FF),
-                    blurRadius: 20,
-                  ),
-                ],
+                borderRadius: BorderRadius.circular(25),
               ),
               child: const Row(
                 children: [
@@ -722,24 +512,16 @@ class HomePage extends StatelessWidget {
                           'Maruti Ertiga',
                           style: TextStyle(
                             fontSize: 23,
-                            fontWeight:
-                                FontWeight.bold,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                         SizedBox(height: 6),
                         Text(
                           'Comfort • Safe • Reliable',
-                          style: TextStyle(
-                            fontSize: 14,
-                          ),
                         ),
                         SizedBox(height: 4),
                         Text(
                           '22 km/l • West Bengal',
-                          style: TextStyle(
-                            color:
-                                Color(0xFFD7E8FF),
-                          ),
                         ),
                       ],
                     ),
@@ -748,7 +530,7 @@ class HomePage extends StatelessWidget {
               ),
             ),
 
-            const SizedBox(height: 25),
+            const SizedBox(height: 22),
 
             SizedBox(
               width: double.infinity,
@@ -758,29 +540,15 @@ class HomePage extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) =>
-                          const BookingPage(),
+                      builder: (_) => const BookingPage(),
                     ),
                   );
                 },
-                style:
-                    ElevatedButton.styleFrom(
-                  backgroundColor:
-                      const Color(0xFF1687FF),
-                  foregroundColor:
-                      Colors.white,
-                  shape:
-                      RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.circular(18),
-                  ),
-                ),
                 child: const Text(
                   'BOOK YOUR RIDE',
                   style: TextStyle(
                     fontSize: 17,
-                    fontWeight:
-                        FontWeight.bold,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
@@ -790,24 +558,23 @@ class HomePage extends StatelessWidget {
 
             SizedBox(
               width: double.infinity,
-              height: 55,
+              height: 58,
               child: OutlinedButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          const BookingHistoryPage(),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.history),
+                icon: const Icon(Icons.receipt_long),
                 label: const Text(
                   'MY BOOKINGS',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                   ),
                 ),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const MyBookingsPage(),
+                    ),
+                  );
+                },
               ),
             ),
 
@@ -817,10 +584,8 @@ class HomePage extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color:
-                    const Color(0xFF10243B),
-                borderRadius:
-                    BorderRadius.circular(20),
+                color: const Color(0xFF10243B),
+                borderRadius: BorderRadius.circular(20),
               ),
               child: const Column(
                 crossAxisAlignment:
@@ -830,16 +595,14 @@ class HomePage extends StatelessWidget {
                     'HR RIDE SERVICE',
                     style: TextStyle(
                       fontSize: 16,
-                      fontWeight:
-                          FontWeight.bold,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                   SizedBox(height: 10),
                   Text(
                     'Premium cab rental service across West Bengal.',
                     style: TextStyle(
-                      color:
-                          Color(0xFF9EB1C7),
+                      color: Color(0xFF9EB1C7),
                     ),
                   ),
                 ],
@@ -860,159 +623,87 @@ class BookingPage extends StatefulWidget {
   const BookingPage({super.key});
 
   @override
-  State<BookingPage> createState() =>
-      _BookingPageState();
+  State<BookingPage> createState() => _BookingPageState();
 }
 
-class _BookingPageState
-    extends State<BookingPage> {
-  final pickupController =
-      TextEditingController();
+class _BookingPageState extends State<BookingPage> {
+  final pickupController = TextEditingController();
+  final dropController = TextEditingController();
 
-  final dropController =
-      TextEditingController();
-
-  bool saving = false;
-
-  // ==========================================================
-  // SAVE BOOKING
-  // ==========================================================
+  bool loading = false;
 
   Future<void> confirmBooking() async {
-    final pickup =
-        pickupController.text.trim();
-
-    final drop =
-        dropController.text.trim();
-
-    final user =
-        FirebaseAuth.instance.currentUser;
+    final pickup = pickupController.text.trim();
+    final drop = dropController.text.trim();
 
     if (pickup.isEmpty || drop.isEmpty) {
-      showMessage(
-        'Please enter pickup and drop location',
-      );
+      showError('Please enter pickup and drop location');
       return;
     }
+
+    final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      showMessage(
-        'Please login again.',
-      );
+      showError('Please login first');
       return;
     }
 
-    if (saving) return;
+    if (loading) return;
 
-    setState(() {
-      saving = true;
-    });
+    setState(() => loading = true);
 
     try {
-      final bookingRef =
-          await FirebaseFirestore.instance
-              .collection('bookings')
-              .add({
+      await FirebaseFirestore.instance
+          .collection('bookings')
+          .add({
         'userId': user.uid,
-        'phone': user.phoneNumber ?? '',
+        'userPhone': user.phoneNumber ?? '',
         'pickup': pickup,
         'drop': drop,
         'vehicle': 'Maruti Ertiga',
-        'serviceArea': 'West Bengal',
         'mileage': '22 km/l',
+        'region': 'West Bengal',
         'status': 'Pending',
-        'createdAt':
-            FieldValue.serverTimestamp(),
+        'createdAt': FieldValue.serverTimestamp(),
       });
 
       if (!mounted) return;
 
-      setState(() {
-        saving = false;
-      });
+      setState(() => loading = false);
 
       showDialog(
         context: context,
-        barrierDismissible: false,
-        builder: (_) {
-          return AlertDialog(
-            title: const Text(
-              'Booking Confirmed',
+        builder: (_) => AlertDialog(
+          title: const Text('Booking Confirmed'),
+          content: Text(
+            'Pickup: $pickup\n\n'
+            'Drop: $drop\n\n'
+            'Vehicle: Maruti Ertiga\n'
+            'Status: Pending',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.pop(context);
+              },
+              child: const Text('OK'),
             ),
-            content: Column(
-              mainAxisSize:
-                  MainAxisSize.min,
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Your booking has been saved.',
-                ),
-                const SizedBox(height: 15),
-                Text(
-                  'Booking ID:\n${bookingRef.id}',
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Pickup: $pickup',
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Drop: $drop',
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Vehicle: Maruti Ertiga',
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Status: Pending',
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  Navigator.pop(context);
-                },
-                child: const Text('DONE'),
-              ),
-            ],
-          );
-        },
-      );
-    } on FirebaseException catch (e) {
-      if (!mounted) return;
-
-      setState(() {
-        saving = false;
-      });
-
-      showMessage(
-        'Booking Error:\n'
-        '${e.code}\n'
-        '${e.message ?? ''}',
+          ],
+        ),
       );
     } catch (e) {
       if (!mounted) return;
 
-      setState(() {
-        saving = false;
-      });
+      setState(() => loading = false);
 
-      showMessage(
-        'Booking Error:\n$e',
-      );
+      showError('Booking Error:\n$e');
     }
   }
 
-  void showMessage(String message) {
+  void showError(String text) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 7),
-      ),
+      SnackBar(content: Text(text)),
     );
   }
 
@@ -1023,66 +714,43 @@ class _BookingPageState
     super.dispose();
   }
 
-  // ==========================================================
-  // UI
-  // ==========================================================
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Book Your Ride',
-        ),
+        title: const Text('Book Your Ride'),
         centerTitle: true,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 10),
 
-            const Text(
-              'Where are you going?',
-              style: TextStyle(
-                fontSize: 27,
-                fontWeight: FontWeight.bold,
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Where are you going?',
+                style: TextStyle(
+                  fontSize: 27,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
 
-            const SizedBox(height: 8),
-
-            const Text(
-              'Enter your pickup and destination',
-              style: TextStyle(
-                color: Color(0xFF9EB1C7),
-              ),
-            ),
-
-            const SizedBox(height: 28),
+            const SizedBox(height: 25),
 
             TextField(
               controller: pickupController,
               decoration: InputDecoration(
-                labelText:
-                    'Pickup Location',
-                hintText:
-                    'Enter pickup',
-                prefixIcon:
-                    const Icon(
-                  Icons.my_location,
-                ),
+                labelText: 'Pickup Location',
+                hintText: 'Enter pickup',
+                prefixIcon: const Icon(Icons.my_location),
                 filled: true,
-                fillColor:
-                    const Color(0xFF10243B),
-                border:
-                    OutlineInputBorder(
-                  borderRadius:
-                      BorderRadius.circular(18),
-                  borderSide:
-                      BorderSide.none,
+                fillColor: const Color(0xFF10243B),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(18),
+                  borderSide: BorderSide.none,
                 ),
               ),
             ),
@@ -1092,23 +760,14 @@ class _BookingPageState
             TextField(
               controller: dropController,
               decoration: InputDecoration(
-                labelText:
-                    'Drop Location',
-                hintText:
-                    'Enter destination',
-                prefixIcon:
-                    const Icon(
-                  Icons.location_on,
-                ),
+                labelText: 'Drop Location',
+                hintText: 'Enter destination',
+                prefixIcon: const Icon(Icons.location_on),
                 filled: true,
-                fillColor:
-                    const Color(0xFF10243B),
-                border:
-                    OutlineInputBorder(
-                  borderRadius:
-                      BorderRadius.circular(18),
-                  borderSide:
-                      BorderSide.none,
+                fillColor: const Color(0xFF10243B),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(18),
+                  borderSide: BorderSide.none,
                 ),
               ),
             ),
@@ -1117,54 +776,35 @@ class _BookingPageState
 
             Container(
               width: double.infinity,
-              padding:
-                  const EdgeInsets.all(18),
+              padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
-                color:
-                    const Color(0xFF10243B),
-                borderRadius:
-                    BorderRadius.circular(20),
+                color: const Color(0xFF10243B),
+                borderRadius: BorderRadius.circular(20),
               ),
               child: const Row(
                 children: [
                   Icon(
                     Icons.directions_car,
                     size: 50,
-                    color:
-                        Color(0xFF1687FF),
+                    color: Color(0xFF1687FF),
                   ),
                   SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Maruti Ertiga',
-                          style: TextStyle(
-                            fontSize: 19,
-                            fontWeight:
-                                FontWeight.bold,
-                          ),
+                  Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Maruti Ertiga',
+                        style: TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.bold,
                         ),
-                        SizedBox(height: 5),
-                        Text(
-                          'HR RIDE • West Bengal',
-                          style: TextStyle(
-                            color:
-                                Color(0xFF9EB1C7),
-                          ),
-                        ),
-                        SizedBox(height: 3),
-                        Text(
-                          '22 km/l',
-                          style: TextStyle(
-                            color:
-                                Color(0xFF1687FF),
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                      SizedBox(height: 5),
+                      Text('HR RIDE • West Bengal'),
+                      SizedBox(height: 3),
+                      Text('22 km/l'),
+                    ],
                   ),
                 ],
               ),
@@ -1176,39 +816,16 @@ class _BookingPageState
               width: double.infinity,
               height: 58,
               child: ElevatedButton(
-                onPressed:
-                    saving
-                        ? null
-                        : confirmBooking,
-                style:
-                    ElevatedButton.styleFrom(
-                  backgroundColor:
-                      const Color(0xFF1687FF),
-                  foregroundColor:
-                      Colors.white,
-                  shape:
-                      RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.circular(18),
-                  ),
-                ),
-                child: saving
-                    ? const SizedBox(
-                        width: 25,
-                        height: 25,
-                        child:
-                            CircularProgressIndicator(
-                          color:
-                              Colors.white,
-                          strokeWidth: 3,
-                        ),
+                onPressed: loading ? null : confirmBooking,
+                child: loading
+                    ? const CircularProgressIndicator(
+                        color: Colors.white,
                       )
                     : const Text(
                         'CONFIRM BOOKING',
                         style: TextStyle(
                           fontSize: 17,
-                          fontWeight:
-                              FontWeight.bold,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
               ),
@@ -1221,150 +838,97 @@ class _BookingPageState
 }
 
 // ============================================================
-// CUSTOMER BOOKING HISTORY
+// MY BOOKINGS
 // ============================================================
 
-class BookingHistoryPage
-    extends StatelessWidget {
-  const BookingHistoryPage({super.key});
+class MyBookingsPage extends StatelessWidget {
+  const MyBookingsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final user =
-        FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
-      return Scaffold(
-        appBar: AppBar(
-          title:
-              const Text('My Bookings'),
-        ),
-        body: const Center(
-          child: Text(
-            'Please login again.',
-          ),
-        ),
-      );
-    }
+    final user = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
       appBar: AppBar(
-        title:
-            const Text('My Bookings'),
+        title: const Text('My Bookings'),
         centerTitle: true,
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore
-            .instance
-            .collection('bookings')
-            .where(
-              'userId',
-              isEqualTo: user.uid,
+      body: user == null
+          ? const Center(
+              child: Text('Please login first'),
             )
-            .snapshots(),
-        builder:
-            (context, snapshot) {
-          if (snapshot.connectionState ==
-              ConnectionState.waiting) {
-            return const Center(
-              child:
-                  CircularProgressIndicator(),
-            );
-          }
+          : StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('bookings')
+                  .where(
+                    'userId',
+                    isEqualTo: user.uid,
+                  )
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState ==
+                    ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(),
+                  );
+                }
 
-          if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding:
-                    const EdgeInsets.all(20),
-                child: Text(
-                  'Error:\n${snapshot.error}',
-                  textAlign:
-                      TextAlign.center,
-                ),
-              ),
-            );
-          }
-
-          final docs =
-              snapshot.data?.docs ?? [];
-
-          if (docs.isEmpty) {
-            return const Center(
-              child: Column(
-                mainAxisAlignment:
-                    MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.event_busy,
-                    size: 70,
-                    color:
-                        Color(0xFF1687FF),
-                  ),
-                  SizedBox(height: 15),
-                  Text(
-                    'No bookings yet',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight:
-                          FontWeight.bold,
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text(
+                      'Error: ${snapshot.error}',
                     ),
-                  ),
-                ],
-              ),
-            );
-          }
+                  );
+                }
 
-          docs.sort((a, b) {
-            final aData =
-                a.data()
-                    as Map<String, dynamic>;
-            final bData =
-                b.data()
-                    as Map<String, dynamic>;
+                final docs =
+                    snapshot.data?.docs ?? [];
 
-            final aTime =
-                aData['createdAt'];
-            final bTime =
-                bData['createdAt'];
+                if (docs.isEmpty) {
+                  return const Center(
+                    child: Text('No bookings yet'),
+                  );
+                }
 
-            if (aTime is Timestamp &&
-                bTime is Timestamp) {
-              return bTime.compareTo(aTime);
-            }
+                final bookings = [...docs];
 
-            return 0;
-          });
+                bookings.sort((a, b) {
+                  final aTime =
+                      (a.data()
+                              as Map<String, dynamic>)['createdAt']
+                          as Timestamp?;
 
-          return ListView.builder(
-            padding:
-                const EdgeInsets.all(16),
-            itemCount: docs.length,
-            itemBuilder:
-                (context, index) {
-              final data =
-                  docs[index].data()
-                      as Map<String, dynamic>;
+                  final bTime =
+                      (b.data()
+                              as Map<String, dynamic>)['createdAt']
+                          as Timestamp?;
 
-              return BookingCard(
-                data: data,
-                bookingId:
-                    docs[index].id,
-              );
-            },
-          );
-        },
-      ),
+                  return (bTime?.millisecondsSinceEpoch ?? 0)
+                      .compareTo(
+                    aTime?.millisecondsSinceEpoch ?? 0,
+                  );
+                });
+
+                return ListView.builder(
+                  padding: const EdgeInsets.all(20),
+                  itemCount: bookings.length,
+                  itemBuilder: (context, index) {
+                    final data = bookings[index].data()
+                        as Map<String, dynamic>;
+
+                    return BookingCard(
+                      data: data,
+                      bookingId: bookings[index].id,
+                    );
+                  },
+                );
+              },
+            ),
     );
   }
 }
 
-// ============================================================
-// BOOKING CARD
-// ============================================================
-
-class BookingCard
-    extends StatelessWidget {
+class BookingCard extends StatelessWidget {
   final Map<String, dynamic> data;
   final String bookingId;
 
@@ -1374,42 +938,17 @@ class BookingCard
     required this.bookingId,
   });
 
-  Color statusColor(String status) {
-    if (status == 'Confirmed') {
-      return const Color(0xFF2ECC71);
-    }
-
-    if (status == 'Cancelled') {
-      return const Color(0xFFE74C3C);
-    }
-
-    return const Color(0xFFFFB020);
-  }
-
   @override
   Widget build(BuildContext context) {
     final status =
-        data['status']?.toString() ??
-            'Pending';
-
-    final pickup =
-        data['pickup']?.toString() ??
-            '';
-
-    final drop =
-        data['drop']?.toString() ??
-            '';
+        data['status']?.toString() ?? 'Pending';
 
     return Container(
-      margin:
-          const EdgeInsets.only(bottom: 15),
-      padding:
-          const EdgeInsets.all(18),
+      margin: const EdgeInsets.only(bottom: 18),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color:
-            const Color(0xFF10243B),
-        borderRadius:
-            BorderRadius.circular(20),
+        color: const Color(0xFF0B2942),
+        borderRadius: BorderRadius.circular(24),
       ),
       child: Column(
         crossAxisAlignment:
@@ -1418,93 +957,46 @@ class BookingCard
           Row(
             children: [
               const Icon(
-                Icons.local_taxi,
-                color:
-                    Color(0xFF1687FF),
-                size: 32,
+                Icons.directions_car,
+                color: Color(0xFF1687FF),
+                size: 42,
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 12),
               const Expanded(
                 child: Text(
                   'Maruti Ertiga',
                   style: TextStyle(
-                    fontSize: 19,
-                    fontWeight:
-                        FontWeight.bold,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color:
-                      statusColor(status)
-                          .withValues(
-                    alpha: 0.15,
-                  ),
-                  borderRadius:
-                      BorderRadius.circular(
-                    20,
-                  ),
-                ),
-                child: Text(
-                  status,
-                  style: TextStyle(
-                    color:
-                        statusColor(status),
-                    fontWeight:
-                        FontWeight.bold,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
+              StatusBadge(status: status),
             ],
           ),
 
-          const SizedBox(height: 15),
+          const SizedBox(height: 18),
 
-          Text(
-            'Pickup: $pickup',
-            style:
-                const TextStyle(
-              fontSize: 15,
-            ),
-          ),
-
-          const SizedBox(height: 8),
-
-          Text(
-            'Drop: $drop',
-            style:
-                const TextStyle(
-              fontSize: 15,
-            ),
-          ),
-
-          const SizedBox(height: 8),
-
-          const Text(
-            '22 km/l • West Bengal',
-            style:
-                TextStyle(
-              color:
-                  Color(0xFF9EB1C7),
-            ),
-          ),
-
+          Text('Pickup: ${data['pickup'] ?? ''}'),
           const SizedBox(height: 10),
+          Text('Drop: ${data['drop'] ?? ''}'),
+
+          const SizedBox(height: 12),
+
+          Text(
+            '22 km/l • West Bengal',
+            style: TextStyle(
+              color: Colors.white.withOpacity(.65),
+            ),
+          ),
+
+          const SizedBox(height: 12),
 
           Text(
             'Booking ID: $bookingId',
-            style:
-                const TextStyle(
-              color:
-                  Color(0xFF71869D),
-              fontSize: 11,
+            style: TextStyle(
+              color: Colors.white.withOpacity(.45),
+              fontSize: 12,
             ),
           ),
         ],
@@ -1513,65 +1005,135 @@ class BookingCard
   }
 }
 
+class StatusBadge extends StatelessWidget {
+  final String status;
+
+  const StatusBadge({
+    super.key,
+    required this.status,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 14,
+        vertical: 9,
+      ),
+      decoration: BoxDecoration(
+        color: status == 'Confirmed'
+            ? Colors.green.withOpacity(.25)
+            : status == 'Rejected'
+                ? Colors.red.withOpacity(.25)
+                : Colors.orange.withOpacity(.25),
+        borderRadius: BorderRadius.circular(30),
+      ),
+      child: Text(
+        status,
+        style: TextStyle(
+          color: status == 'Confirmed'
+              ? Colors.greenAccent
+              : status == 'Rejected'
+                  ? Colors.redAccent
+                  : Colors.orangeAccent,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+}
+
 // ============================================================
-// ADMIN BOOKING PAGE
+// ADMIN PANEL
 // ============================================================
 
-class AdminBookingPage
-    extends StatelessWidget {
-  const AdminBookingPage({super.key});
+class AdminPanel extends StatelessWidget {
+  const AdminPanel({super.key});
 
-  Future<void> updateStatus(
+  static const String adminPhone = '+919002266005';
+
+  bool get isAdmin {
+    final user = FirebaseAuth.instance.currentUser;
+    return user?.phoneNumber == adminPhone;
+  }
+
+  Future<void> updateBooking(
+    BuildContext context,
     String bookingId,
     String status,
   ) async {
-    await FirebaseFirestore.instance
-        .collection('bookings')
-        .doc(bookingId)
-        .update({
-      'status': status,
-      'updatedAt':
-          FieldValue.serverTimestamp(),
-    });
+    try {
+      await FirebaseFirestore.instance
+          .collection('bookings')
+          .doc(bookingId)
+          .update({
+        'status': status,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Booking $status'),
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Update Error:\n$e'),
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (!isAdmin) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Admin Panel'),
+        ),
+        body: const Center(
+          child: Text(
+            'Admin access denied',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
-        title:
-            const Text('Admin Bookings'),
+        title: const Text(
+          'HR RIDE ADMIN',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         centerTitle: true,
       ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore
-            .instance
+        stream: FirebaseFirestore.instance
             .collection('bookings')
-            .orderBy(
-              'createdAt',
-              descending: true,
-            )
             .snapshots(),
-        builder:
-            (context, snapshot) {
+        builder: (context, snapshot) {
           if (snapshot.connectionState ==
               ConnectionState.waiting) {
             return const Center(
-              child:
-                  CircularProgressIndicator(),
+              child: CircularProgressIndicator(),
             );
           }
 
           if (snapshot.hasError) {
             return Center(
-              child: Padding(
-                padding:
-                    const EdgeInsets.all(20),
-                child: Text(
-                  'Admin Error:\n${snapshot.error}',
-                  textAlign:
-                      TextAlign.center,
-                ),
+              child: Text(
+                'Error: ${snapshot.error}',
               ),
             );
           }
@@ -1582,44 +1144,32 @@ class AdminBookingPage
           if (docs.isEmpty) {
             return const Center(
               child: Text(
-                'No bookings found',
+                'No bookings available',
+                style: TextStyle(fontSize: 18),
               ),
             );
           }
 
           return ListView.builder(
-            padding:
-                const EdgeInsets.all(15),
+            padding: const EdgeInsets.all(18),
             itemCount: docs.length,
-            itemBuilder:
-                (context, index) {
-              final doc =
-                  docs[index];
+            itemBuilder: (context, index) {
+              final doc = docs[index];
 
               final data =
-                  doc.data()
-                      as Map<String, dynamic>;
+                  doc.data() as Map<String, dynamic>;
 
               final status =
-                  data['status']
-                          ?.toString() ??
-                      'Pending';
+                  data['status']?.toString() ?? 'Pending';
 
               return Container(
                 margin:
-                    const EdgeInsets.only(
-                  bottom: 15,
-                ),
-                padding:
-                    const EdgeInsets.all(18),
-                decoration:
-                    BoxDecoration(
-                  color:
-                      const Color(0xFF10243B),
+                    const EdgeInsets.only(bottom: 18),
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10243B),
                   borderRadius:
-                      BorderRadius.circular(
-                    20,
-                  ),
+                      BorderRadius.circular(22),
                 ),
                 child: Column(
                   crossAxisAlignment:
@@ -1628,132 +1178,97 @@ class AdminBookingPage
                     Row(
                       children: [
                         const Icon(
-                          Icons
-                              .admin_panel_settings,
-                          color:
-                              Color(0xFF1687FF),
+                          Icons.directions_car,
+                          color: Color(0xFF1687FF),
+                          size: 40,
                         ),
-                        const SizedBox(
-                          width: 10,
-                        ),
-                        Expanded(
+                        const SizedBox(width: 12),
+                        const Expanded(
                           child: Text(
-                            'Booking #${index + 1}',
-                            style:
-                                const TextStyle(
-                              fontSize: 18,
+                            'Maruti Ertiga',
+                            style: TextStyle(
+                              fontSize: 21,
                               fontWeight:
                                   FontWeight.bold,
                             ),
                           ),
                         ),
-                        Text(
-                          status,
-                          style:
-                              const TextStyle(
-                            color:
-                                Color(0xFFFFB020),
-                            fontWeight:
-                                FontWeight.bold,
-                          ),
+                        StatusBadge(
+                          status: status,
                         ),
                       ],
                     ),
 
-                    const SizedBox(
-                      height: 15,
-                    ),
-
-                    Text(
-                      'Customer: ${data['phone'] ?? 'N/A'}',
-                    ),
-
-                    const SizedBox(
-                      height: 7,
-                    ),
+                    const SizedBox(height: 18),
 
                     Text(
                       'Pickup: ${data['pickup'] ?? ''}',
-                    ),
-
-                    const SizedBox(
-                      height: 7,
-                    ),
-
-                    Text(
-                      'Drop: ${data['drop'] ?? ''}',
-                    ),
-
-                    const SizedBox(
-                      height: 7,
-                    ),
-
-                    const Text(
-                      'Vehicle: Maruti Ertiga',
-                    ),
-
-                    const SizedBox(
-                      height: 7,
-                    ),
-
-                    Text(
-                      'Booking ID: ${doc.id}',
-                      style:
-                          const TextStyle(
-                        color:
-                            Color(0xFF71869D),
-                        fontSize: 11,
+                      style: const TextStyle(
+                        fontSize: 16,
                       ),
                     ),
 
-                    const SizedBox(
-                      height: 15,
+                    const SizedBox(height: 10),
+
+                    Text(
+                      'Drop: ${data['drop'] ?? ''}',
+                      style: const TextStyle(
+                        fontSize: 16,
+                      ),
                     ),
 
-                    Row(
-                      children: [
-                        Expanded(
-                          child:
-                              ElevatedButton(
-                            onPressed: () {
-                              updateStatus(
-                                doc.id,
-                                'Confirmed',
-                              );
-                            },
-                            style:
-                                ElevatedButton.styleFrom(
-                              backgroundColor:
-                                  const Color(
-                                0xFF1687FF,
-                              ),
-                            ),
-                            child:
-                                const Text(
-                              'CONFIRM',
-                            ),
-                          ),
-                        ),
-                        const SizedBox(
-                          width: 10,
-                        ),
-                        Expanded(
-                          child:
-                              OutlinedButton(
-                            onPressed: () {
-                              updateStatus(
-                                doc.id,
-                                'Cancelled',
-                              );
-                            },
-                            child:
-                                const Text(
-                              'CANCEL',
-                            ),
-                          ),
-                        ),
-                      ],
+                    const SizedBox(height: 10),
+
+                    Text(
+                      'Customer: ${data['userPhone'] ?? ''}',
+                      style: TextStyle(
+                        color:
+                            Colors.white.withOpacity(.65),
+                      ),
                     ),
+
+                    const SizedBox(height: 18),
+
+                    if (status == 'Pending')
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                updateBooking(
+                                  context,
+                                  doc.id,
+                                  'Confirmed',
+                                );
+                              },
+                              icon: const Icon(
+                                Icons.check,
+                              ),
+                              label:
+                                  const Text('ACCEPT'),
+                            ),
+                          ),
+
+                          const SizedBox(width: 12),
+
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () {
+                                updateBooking(
+                                  context,
+                                  doc.id,
+                                  'Rejected',
+                                );
+                              },
+                              icon: const Icon(
+                                Icons.close,
+                              ),
+                              label:
+                                  const Text('REJECT'),
+                            ),
+                          ),
+                        ],
+                      ),
                   ],
                 ),
               );
