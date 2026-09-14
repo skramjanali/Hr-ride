@@ -5,6 +5,8 @@ workflows:
     max_build_duration: 60
 
     environment:
+      android_signing:
+        - hr-ride-release
       flutter: stable
 
     scripts:
@@ -30,6 +32,7 @@ workflows:
               'applicationId "com.hrride.hr_ride"',
               'applicationId "com.hrride.app"'
           )
+
           text = text.replace(
               'applicationId = "com.hrride.hr_ride"',
               'applicationId = "com.hrride.app"'
@@ -70,24 +73,13 @@ workflows:
 
       - name: Sign APK
         script: |
-          keytool -genkeypair \
-            -v \
-            -keystore hr-ride-release.keystore \
-            -alias hr-ride \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -storepass hrride123 \
-            -keypass hrride123 \
-            -dname "CN=HR RIDE, OU=HR RIDE, O=HR RIDE, L=Kolkata, ST=West Bengal, C=IN"
-
           APKSIGNER=$(find "$ANDROID_HOME" -name apksigner -type f | head -1)
 
           "$APKSIGNER" sign \
-            --ks hr-ride-release.keystore \
-            --ks-key-alias hr-ride \
-            --ks-pass pass:hrride123 \
-            --key-pass pass:hrride123 \
+            --ks "$CM_KEYSTORE_PATH" \
+            --ks-key-alias "$CM_KEY_ALIAS" \
+            --ks-pass env:CM_KEYSTORE_PASSWORD \
+            --key-pass env:CM_KEY_PASSWORD \
             build/app/outputs/flutter-apk/app-release.apk
 
       - name: Get APK SHA
