@@ -36,6 +36,28 @@ workflows:
           )
 
           app.write_text(text)
+
+          settings = Path("android/settings.gradle")
+          if not settings.exists():
+              settings = Path("android/settings.gradle.kts")
+
+          text = settings.read_text()
+
+          if "com.google.gms.google-services" not in text:
+              if settings.suffix == ".kts":
+                  text = text.replace(
+                      "plugins {",
+                      'plugins {\n    id("com.google.gms.google-services") version "4.4.2" apply false',
+                      1
+                  )
+              else:
+                  text = text.replace(
+                      "plugins {",
+                      'plugins {\n    id "com.google.gms.google-services" version "4.4.2" apply false',
+                      1
+                  )
+
+          settings.write_text(text)
           PY
 
       - name: Get packages
@@ -45,6 +67,32 @@ workflows:
       - name: Build APK
         script: |
           flutter build apk --release
+
+      - name: Sign APK
+        script: |
+          keytool -genkeypair \
+            -v \
+            -keystore hr-ride-release.keystore \
+            -alias hr-ride \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass hrride123 \
+            -keypass hrride123 \
+            -dname "CN=HR RIDE, OU=HR RIDE, O=HR RIDE, L=Kolkata, ST=West Bengal, C=IN"
+
+          APKSIGNER=$(find "$ANDROID_HOME" -name apksigner -type f | head -1)
+
+          "$APKSIGNER" sign \
+            --ks hr-ride-release.keystore \
+            --ks-key-alias hr-ride \
+            --ks-pass pass:hrride123 \
+            --key-pass pass:hrride123 \
+            build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Get APK SHA
+        script: |
+          keytool -printcert -jarfile build/app/outputs/flutter-apk/app-release.apk
 
     artifacts:
       - build/app/outputs/flutter-apk/app-release.apk
