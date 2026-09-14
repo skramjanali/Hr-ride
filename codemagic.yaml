@@ -21,36 +21,75 @@ workflows:
           python3 - <<'PY'
           from pathlib import Path
 
-          # Set correct package ID
-          p = Path("android/app/build.gradle")
-          text = p.read_text()
+          # Find Android app Gradle file
+          gradle_files = [
+              Path("android/app/build.gradle"),
+              Path("android/app/build.gradle.kts")
+          ]
+
+          app_gradle = next((p for p in gradle_files if p.exists()), None)
+
+          if app_gradle is None:
+              raise FileNotFoundError("Android app Gradle file not found")
+
+          text = app_gradle.read_text()
+
+          # Set correct application ID
           text = text.replace(
               'applicationId "com.hrride.hr_ride"',
               'applicationId "com.hrride.app"'
           )
+          text = text.replace(
+              'applicationId = "com.hrride.hr_ride"',
+              'applicationId = "com.hrride.app"'
+          )
 
-          # Add Google Services plugin to app
+          # Add Google Services plugin
+          if app_gradle.suffix == ".kts":
+              if 'com.google.gms.google-services' not in text:
+                  text = text.replace(
+                      'plugins {',
+                      'plugins {\n    id("com.google.gms.google-services")',
+                      1
+                  )
+          else:
+              if 'com.google.gms.google-services' not in text:
+                  text = text.replace(
+                      'plugins {',
+                      'plugins {\n    id "com.google.gms.google-services"',
+                      1
+                  )
+
+          app_gradle.write_text(text)
+
+          # Configure settings.gradle / settings.gradle.kts
+          settings_files = [
+              Path("android/settings.gradle"),
+              Path("android/settings.gradle.kts")
+          ]
+
+          settings = next((p for p in settings_files if p.exists()), None)
+
+          if settings is None:
+              raise FileNotFoundError("Android settings Gradle file not found")
+
+          text = settings.read_text()
+
           if 'com.google.gms.google-services' not in text:
-              text = text.replace(
-                  'plugins {',
-                  'plugins {\n    id "com.google.gms.google-services"',
-                  1
-              )
+              if settings.suffix == ".kts":
+                  text = text.replace(
+                      'plugins {',
+                      'plugins {\n    id("com.google.gms.google-services") version "4.4.2" apply false',
+                      1
+                  )
+              else:
+                  text = text.replace(
+                      'plugins {',
+                      'plugins {\n    id "com.google.gms.google-services" version "4.4.2" apply false',
+                      1
+                  )
 
-          p.write_text(text)
-
-          # Add Google Services plugin version to settings
-          p = Path("android/settings.gradle")
-          text = p.read_text()
-
-          if 'com.google.gms.google-services' not in text:
-              text = text.replace(
-                  'plugins {',
-                  'plugins {\n    id "com.google.gms.google-services" version "4.4.2" apply false',
-                  1
-              )
-
-          p.write_text(text)
+          settings.write_text(text)
           PY
 
       - name: Get packages
