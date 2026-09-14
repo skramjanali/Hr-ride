@@ -21,7 +21,6 @@ workflows:
           python3 - <<'PY'
           from pathlib import Path
 
-          # Find Android app Gradle file
           gradle_files = [
               Path("android/app/build.gradle"),
               Path("android/app/build.gradle.kts")
@@ -34,17 +33,16 @@ workflows:
 
           text = app_gradle.read_text()
 
-          # Set correct application ID
           text = text.replace(
               'applicationId "com.hrride.hr_ride"',
               'applicationId "com.hrride.app"'
           )
+
           text = text.replace(
               'applicationId = "com.hrride.hr_ride"',
               'applicationId = "com.hrride.app"'
           )
 
-          # Add Google Services plugin
           if app_gradle.suffix == ".kts":
               if 'com.google.gms.google-services' not in text:
                   text = text.replace(
@@ -62,7 +60,6 @@ workflows:
 
           app_gradle.write_text(text)
 
-          # Configure settings.gradle / settings.gradle.kts
           settings_files = [
               Path("android/settings.gradle"),
               Path("android/settings.gradle.kts")
@@ -71,7 +68,9 @@ workflows:
           settings = next((p for p in settings_files if p.exists()), None)
 
           if settings is None:
-              raise FileNotFoundError("Android settings Gradle file not found")
+              raise FileNotFoundError(
+                  "Android settings Gradle file not found"
+              )
 
           text = settings.read_text()
 
@@ -79,13 +78,17 @@ workflows:
               if settings.suffix == ".kts":
                   text = text.replace(
                       'plugins {',
-                      'plugins {\n    id("com.google.gms.google-services") version "4.4.2" apply false',
+                      'plugins {\n'
+                      '    id("com.google.gms.google-services") '
+                      'version "4.4.2" apply false',
                       1
                   )
               else:
                   text = text.replace(
                       'plugins {',
-                      'plugins {\n    id "com.google.gms.google-services" version "4.4.2" apply false',
+                      'plugins {\n'
+                      '    id "com.google.gms.google-services" '
+                      'version "4.4.2" apply false',
                       1
                   )
 
@@ -99,6 +102,10 @@ workflows:
       - name: Build APK
         script: |
           flutter build apk --release
+
+      - name: Get APK SHA
+        script: |
+          keytool -printcert -jarfile build/app/outputs/flutter-apk/app-release.apk
 
     artifacts:
       - build/app/outputs/flutter-apk/app-release.apk
