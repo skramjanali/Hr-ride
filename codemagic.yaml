@@ -12,56 +12,46 @@ workflows:
       - name: Generate Android project
         script: |
           rm -rf android
+          flutter create . --platforms=android --org com.hrride
 
-          flutter create . \
-            --platforms=android \
-            --org com.hrride
-
-          echo "===== Adding Firebase configuration ====="
-
+      - name: Configure Firebase
+        script: |
           cp app/google-services.json android/app/google-services.json
-
-          echo "===== Updating application ID ====="
-
-          sed -i.bak \
-            's/applicationId "com.hrride.hr_ride"/applicationId "com.hrride.app"/' \
-            android/app/build.gradle
-
-          rm -f android/app/build.gradle.bak
-
-          echo "===== Adding Google Services plugin ====="
 
           python3 - <<'PY'
           from pathlib import Path
 
-          settings = Path("android/settings.gradle")
-          text = settings.read_text()
+          # Set correct package ID
+          p = Path("android/app/build.gradle")
+          text = p.read_text()
+          text = text.replace(
+              'applicationId "com.hrride.hr_ride"',
+              'applicationId "com.hrride.app"'
+          )
 
-          if "com.google.gms.google-services" not in text:
+          # Add Google Services plugin to app
+          if 'com.google.gms.google-services' not in text:
               text = text.replace(
-                  "plugins {",
-                  'plugins {\n    id "com.google.gms.google-services" version "4.4.2" apply false',
-                  1
-              )
-
-          settings.write_text(text)
-
-          app_gradle = Path("android/app/build.gradle")
-          text = app_gradle.read_text()
-
-          if "com.google.gms.google-services" not in text:
-              text = text.replace(
-                  "plugins {",
+                  'plugins {',
                   'plugins {\n    id "com.google.gms.google-services"',
                   1
               )
 
-          app_gradle.write_text(text)
-          PY
+          p.write_text(text)
 
-          echo "===== Android Firebase files ====="
-          ls -la android/app/
-          test -f android/app/google-services.json
+          # Add Google Services plugin version to settings
+          p = Path("android/settings.gradle")
+          text = p.read_text()
+
+          if 'com.google.gms.google-services' not in text:
+              text = text.replace(
+                  'plugins {',
+                  'plugins {\n    id "com.google.gms.google-services" version "4.4.2" apply false',
+                  1
+              )
+
+          p.write_text(text)
+          PY
 
       - name: Get packages
         script: |
