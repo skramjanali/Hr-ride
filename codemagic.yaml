@@ -8,17 +8,23 @@ workflows:
       flutter: stable
 
     scripts:
-      - name: Generate fresh Android
+      - name: Generate Android project
         script: |
           rm -rf android
           flutter create . --platforms=android --org com.hrride
+
+          sed -i.bak 's/applicationId "com.hrride.hr_ride"/applicationId "com.hrride.app"/' android/app/build.gradle
+          rm -f android/app/build.gradle.bak
+
           cp app/google-services.json android/app/google-services.json
 
       - name: Get packages
-        script: flutter pub get
+        script: |
+          flutter pub get
 
       - name: Build APK
-        script: flutter build apk --release
+        script: |
+          flutter build apk --release
 
     artifacts:
       - build/app/outputs/flutter-apk/app-release.apk
