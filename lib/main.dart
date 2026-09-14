@@ -14,7 +14,9 @@ Future<void> main() async {
   }
 
   try {
-    await GoogleSignIn.instance.initialize();
+    await GoogleSignIn.instance.initialize(
+  serverClientId: '383829745014-1m58ttp9dj4dqike8ot15uva7vnbajua.apps.googleusercontent.com',
+);
   } catch (e) {
     debugPrint('Google Sign-In initialization error: $e');
   }
