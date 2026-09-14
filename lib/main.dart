@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -6,14 +7,12 @@ import 'package:google_sign_in/google_sign_in.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Firebase initialization
   try {
     await Firebase.initializeApp();
   } catch (e) {
     debugPrint('Firebase initialization error: $e');
   }
 
-  // Google Sign-In initialization
   try {
     await GoogleSignIn.instance.initialize();
   } catch (e) {
@@ -22,6 +21,10 @@ Future<void> main() async {
 
   runApp(const HRRideApp());
 }
+
+// ============================================================
+// APP
+// ============================================================
 
 class HRRideApp extends StatelessWidget {
   const HRRideApp({super.key});
@@ -135,19 +138,10 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> sendOTP() async {
     final input = phoneController.text.trim();
 
-    // যদি + দিয়ে international number দেওয়া হয়,
-    // তাহলে সেটাই সরাসরি Firebase-এ যাবে।
-    //
-    // যেমন:
-    // +16505551234
-    //
-    // আর যদি শুধু 10 digit India number দেওয়া হয়,
-    // তাহলে +91 automatically যোগ হবে।
     final phone = input.startsWith('+')
         ? input
         : '+91$input';
 
-    // International/test number validation
     if (input.startsWith('+')) {
       if (input.length < 8) {
         showError(
@@ -156,7 +150,6 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
     } else {
-      // India mobile number validation
       if (input.length != 10) {
         showError(
           'Enter a valid 10 digit mobile number',
@@ -174,10 +167,6 @@ class _LoginPageState extends State<LoginPage> {
     try {
       await FirebaseAuth.instance.verifyPhoneNumber(
         phoneNumber: phone,
-
-        // ------------------------------------------------------
-        // AUTOMATIC VERIFICATION
-        // ------------------------------------------------------
 
         verificationCompleted:
             (PhoneAuthCredential credential) async {
@@ -208,10 +197,6 @@ class _LoginPageState extends State<LoginPage> {
           }
         },
 
-        // ------------------------------------------------------
-        // VERIFICATION FAILED
-        // ------------------------------------------------------
-
         verificationFailed:
             (FirebaseAuthException e) {
           if (!mounted) return;
@@ -226,10 +211,6 @@ class _LoginPageState extends State<LoginPage> {
             '${e.message ?? ''}',
           );
         },
-
-        // ------------------------------------------------------
-        // CODE SENT
-        // ------------------------------------------------------
 
         codeSent: (
           String id,
@@ -248,14 +229,9 @@ class _LoginPageState extends State<LoginPage> {
               content: Text(
                 'OTP sent successfully',
               ),
-              duration: Duration(seconds: 4),
             ),
           );
         },
-
-        // ------------------------------------------------------
-        // AUTO RETRIEVAL TIMEOUT
-        // ------------------------------------------------------
 
         codeAutoRetrievalTimeout:
             (String id) {
@@ -352,14 +328,14 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   // ==========================================================
-  // ERROR MESSAGE
+  // ERROR
   // ==========================================================
 
   void showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        duration: const Duration(seconds: 10),
+        duration: const Duration(seconds: 8),
       ),
     );
   }
@@ -376,10 +352,6 @@ class _LoginPageState extends State<LoginPage> {
       ),
     );
   }
-
-  // ==========================================================
-  // DISPOSE
-  // ==========================================================
 
   @override
   void dispose() {
@@ -402,7 +374,6 @@ class _LoginPageState extends State<LoginPage> {
             children: [
               const SizedBox(height: 50),
 
-              // LOGO
               Container(
                 width: 110,
                 height: 110,
@@ -449,7 +420,6 @@ class _LoginPageState extends State<LoginPage> {
 
               const SizedBox(height: 45),
 
-              // PHONE NUMBER
               TextField(
                 controller: phoneController,
                 keyboardType: TextInputType.phone,
@@ -457,10 +427,9 @@ class _LoginPageState extends State<LoginPage> {
                 decoration: InputDecoration(
                   labelText: 'Mobile Number',
                   hintText:
-                      '10 digit number or +country code',
-                  prefixIcon: const Icon(
-                    Icons.phone,
-                  ),
+                      '10 digit or +country code',
+                  prefixIcon:
+                      const Icon(Icons.phone),
                   counterText: '',
                   filled: true,
                   fillColor:
@@ -474,7 +443,6 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
 
-              // OTP FIELD
               if (otpSent) ...[
                 const SizedBox(height: 15),
 
@@ -505,7 +473,6 @@ class _LoginPageState extends State<LoginPage> {
 
               const SizedBox(height: 20),
 
-              // OTP BUTTON
               SizedBox(
                 width: double.infinity,
                 height: 58,
@@ -546,7 +513,6 @@ class _LoginPageState extends State<LoginPage> {
                             fontSize: 15,
                             fontWeight:
                                 FontWeight.bold,
-                            letterSpacing: 0.5,
                           ),
                         ),
                 ),
@@ -554,7 +520,6 @@ class _LoginPageState extends State<LoginPage> {
 
               const SizedBox(height: 25),
 
-              // OR
               const Row(
                 children: [
                   Expanded(
@@ -575,7 +540,6 @@ class _LoginPageState extends State<LoginPage> {
 
               const SizedBox(height: 25),
 
-              // GOOGLE BUTTON
               SizedBox(
                 width: double.infinity,
                 height: 58,
@@ -588,7 +552,6 @@ class _LoginPageState extends State<LoginPage> {
                         Colors.white,
                     side: const BorderSide(
                       color: Color(0xFF38506A),
-                      width: 1.2,
                     ),
                     shape:
                         RoundedRectangleBorder(
@@ -642,6 +605,13 @@ class _LoginPageState extends State<LoginPage> {
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
+  bool isAdmin() {
+    final user = FirebaseAuth.instance.currentUser;
+    final phone = user?.phoneNumber ?? '';
+
+    return phone == '+919002266005';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -653,6 +623,37 @@ class HomePage extends StatelessWidget {
           ),
         ),
         centerTitle: true,
+        actions: [
+          if (isAdmin())
+            IconButton(
+              icon: const Icon(
+                Icons.admin_panel_settings,
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        const AdminBookingPage(),
+                  ),
+                );
+              },
+            ),
+          IconButton(
+            icon: const Icon(
+              Icons.history,
+            ),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      const BookingHistoryPage(),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(22),
@@ -682,7 +683,6 @@ class HomePage extends StatelessWidget {
 
             const SizedBox(height: 35),
 
-            // CAR CARD
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(22),
@@ -750,7 +750,6 @@ class HomePage extends StatelessWidget {
 
             const SizedBox(height: 25),
 
-            // BOOK BUTTON
             SizedBox(
               width: double.infinity,
               height: 58,
@@ -782,7 +781,31 @@ class HomePage extends StatelessWidget {
                     fontSize: 17,
                     fontWeight:
                         FontWeight.bold,
-                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 15),
+
+            SizedBox(
+              width: double.infinity,
+              height: 55,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          const BookingHistoryPage(),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.history),
+                label: const Text(
+                  'MY BOOKINGS',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
@@ -790,7 +813,6 @@ class HomePage extends StatelessWidget {
 
             const SizedBox(height: 25),
 
-            // SERVICE INFO
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(20),
@@ -850,58 +872,149 @@ class _BookingPageState
   final dropController =
       TextEditingController();
 
+  bool saving = false;
+
   // ==========================================================
-  // CONFIRM BOOKING
+  // SAVE BOOKING
   // ==========================================================
 
-  void confirmBooking() {
+  Future<void> confirmBooking() async {
     final pickup =
         pickupController.text.trim();
 
     final drop =
         dropController.text.trim();
 
+    final user =
+        FirebaseAuth.instance.currentUser;
+
     if (pickup.isEmpty || drop.isEmpty) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Please enter pickup and drop location',
-          ),
-        ),
+      showMessage(
+        'Please enter pickup and drop location',
       );
       return;
     }
 
-    showDialog(
-      context: context,
-      builder: (_) {
-        return AlertDialog(
-          title: const Text(
-            'Booking Confirmed',
-          ),
-          content: Text(
-            'Pickup: $pickup\n\n'
-            'Drop: $drop\n\n'
-            'Vehicle: Maruti Ertiga\n'
-            'HR RIDE • West Bengal',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text('OK'),
+    if (user == null) {
+      showMessage(
+        'Please login again.',
+      );
+      return;
+    }
+
+    if (saving) return;
+
+    setState(() {
+      saving = true;
+    });
+
+    try {
+      final bookingRef =
+          await FirebaseFirestore.instance
+              .collection('bookings')
+              .add({
+        'userId': user.uid,
+        'phone': user.phoneNumber ?? '',
+        'pickup': pickup,
+        'drop': drop,
+        'vehicle': 'Maruti Ertiga',
+        'serviceArea': 'West Bengal',
+        'mileage': '22 km/l',
+        'status': 'Pending',
+        'createdAt':
+            FieldValue.serverTimestamp(),
+      });
+
+      if (!mounted) return;
+
+      setState(() {
+        saving = false;
+      });
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) {
+          return AlertDialog(
+            title: const Text(
+              'Booking Confirmed',
             ),
-          ],
-        );
-      },
-    );
+            content: Column(
+              mainAxisSize:
+                  MainAxisSize.min,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Your booking has been saved.',
+                ),
+                const SizedBox(height: 15),
+                Text(
+                  'Booking ID:\n${bookingRef.id}',
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Pickup: $pickup',
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Drop: $drop',
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Vehicle: Maruti Ertiga',
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Status: Pending',
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.pop(context);
+                },
+                child: const Text('DONE'),
+              ),
+            ],
+          );
+        },
+      );
+    } on FirebaseException catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        saving = false;
+      });
+
+      showMessage(
+        'Booking Error:\n'
+        '${e.code}\n'
+        '${e.message ?? ''}',
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        saving = false;
+      });
+
+      showMessage(
+        'Booking Error:\n$e',
+      );
+    }
   }
 
-  // ==========================================================
-  // DISPOSE
-  // ==========================================================
+  void showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 7),
+      ),
+    );
+  }
 
   @override
   void dispose() {
@@ -911,7 +1024,7 @@ class _BookingPageState
   }
 
   // ==========================================================
-  // BOOKING UI
+  // UI
   // ==========================================================
 
   @override
@@ -950,12 +1063,13 @@ class _BookingPageState
 
             const SizedBox(height: 28),
 
-            // PICKUP
             TextField(
               controller: pickupController,
               decoration: InputDecoration(
-                labelText: 'Pickup Location',
-                hintText: 'Enter pickup',
+                labelText:
+                    'Pickup Location',
+                hintText:
+                    'Enter pickup',
                 prefixIcon:
                     const Icon(
                   Icons.my_location,
@@ -975,11 +1089,11 @@ class _BookingPageState
 
             const SizedBox(height: 18),
 
-            // DROP
             TextField(
               controller: dropController,
               decoration: InputDecoration(
-                labelText: 'Drop Location',
+                labelText:
+                    'Drop Location',
                 hintText:
                     'Enter destination',
                 prefixIcon:
@@ -1001,10 +1115,10 @@ class _BookingPageState
 
             const SizedBox(height: 25),
 
-            // VEHICLE CARD
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(18),
+              padding:
+                  const EdgeInsets.all(18),
               decoration: BoxDecoration(
                 color:
                     const Color(0xFF10243B),
@@ -1058,13 +1172,14 @@ class _BookingPageState
 
             const SizedBox(height: 28),
 
-            // CONFIRM BUTTON
             SizedBox(
               width: double.infinity,
               height: 58,
               child: ElevatedButton(
                 onPressed:
-                    confirmBooking,
+                    saving
+                        ? null
+                        : confirmBooking,
                 style:
                     ElevatedButton.styleFrom(
                   backgroundColor:
@@ -1077,19 +1192,574 @@ class _BookingPageState
                         BorderRadius.circular(18),
                   ),
                 ),
-                child: const Text(
-                  'CONFIRM BOOKING',
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight:
-                        FontWeight.bold,
-                    letterSpacing: 0.5,
-                  ),
-                ),
+                child: saving
+                    ? const SizedBox(
+                        width: 25,
+                        height: 25,
+                        child:
+                            CircularProgressIndicator(
+                          color:
+                              Colors.white,
+                          strokeWidth: 3,
+                        ),
+                      )
+                    : const Text(
+                        'CONFIRM BOOKING',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight:
+                              FontWeight.bold,
+                        ),
+                      ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// CUSTOMER BOOKING HISTORY
+// ============================================================
+
+class BookingHistoryPage
+    extends StatelessWidget {
+  const BookingHistoryPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final user =
+        FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      return Scaffold(
+        appBar: AppBar(
+          title:
+              const Text('My Bookings'),
+        ),
+        body: const Center(
+          child: Text(
+            'Please login again.',
+          ),
+        ),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title:
+            const Text('My Bookings'),
+        centerTitle: true,
+      ),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore
+            .instance
+            .collection('bookings')
+            .where(
+              'userId',
+              isEqualTo: user.uid,
+            )
+            .snapshots(),
+        builder:
+            (context, snapshot) {
+          if (snapshot.connectionState ==
+              ConnectionState.waiting) {
+            return const Center(
+              child:
+                  CircularProgressIndicator(),
+            );
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding:
+                    const EdgeInsets.all(20),
+                child: Text(
+                  'Error:\n${snapshot.error}',
+                  textAlign:
+                      TextAlign.center,
+                ),
+              ),
+            );
+          }
+
+          final docs =
+              snapshot.data?.docs ?? [];
+
+          if (docs.isEmpty) {
+            return const Center(
+              child: Column(
+                mainAxisAlignment:
+                    MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.event_busy,
+                    size: 70,
+                    color:
+                        Color(0xFF1687FF),
+                  ),
+                  SizedBox(height: 15),
+                  Text(
+                    'No bookings yet',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight:
+                          FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          docs.sort((a, b) {
+            final aData =
+                a.data()
+                    as Map<String, dynamic>;
+            final bData =
+                b.data()
+                    as Map<String, dynamic>;
+
+            final aTime =
+                aData['createdAt'];
+            final bTime =
+                bData['createdAt'];
+
+            if (aTime is Timestamp &&
+                bTime is Timestamp) {
+              return bTime.compareTo(aTime);
+            }
+
+            return 0;
+          });
+
+          return ListView.builder(
+            padding:
+                const EdgeInsets.all(16),
+            itemCount: docs.length,
+            itemBuilder:
+                (context, index) {
+              final data =
+                  docs[index].data()
+                      as Map<String, dynamic>;
+
+              return BookingCard(
+                data: data,
+                bookingId:
+                    docs[index].id,
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ============================================================
+// BOOKING CARD
+// ============================================================
+
+class BookingCard
+    extends StatelessWidget {
+  final Map<String, dynamic> data;
+  final String bookingId;
+
+  const BookingCard({
+    super.key,
+    required this.data,
+    required this.bookingId,
+  });
+
+  Color statusColor(String status) {
+    if (status == 'Confirmed') {
+      return const Color(0xFF2ECC71);
+    }
+
+    if (status == 'Cancelled') {
+      return const Color(0xFFE74C3C);
+    }
+
+    return const Color(0xFFFFB020);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final status =
+        data['status']?.toString() ??
+            'Pending';
+
+    final pickup =
+        data['pickup']?.toString() ??
+            '';
+
+    final drop =
+        data['drop']?.toString() ??
+            '';
+
+    return Container(
+      margin:
+          const EdgeInsets.only(bottom: 15),
+      padding:
+          const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color:
+            const Color(0xFF10243B),
+        borderRadius:
+            BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.local_taxi,
+                color:
+                    Color(0xFF1687FF),
+                size: 32,
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Maruti Ertiga',
+                  style: TextStyle(
+                    fontSize: 19,
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color:
+                      statusColor(status)
+                          .withValues(
+                    alpha: 0.15,
+                  ),
+                  borderRadius:
+                      BorderRadius.circular(
+                    20,
+                  ),
+                ),
+                child: Text(
+                  status,
+                  style: TextStyle(
+                    color:
+                        statusColor(status),
+                    fontWeight:
+                        FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 15),
+
+          Text(
+            'Pickup: $pickup',
+            style:
+                const TextStyle(
+              fontSize: 15,
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          Text(
+            'Drop: $drop',
+            style:
+                const TextStyle(
+              fontSize: 15,
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          const Text(
+            '22 km/l • West Bengal',
+            style:
+                TextStyle(
+              color:
+                  Color(0xFF9EB1C7),
+            ),
+          ),
+
+          const SizedBox(height: 10),
+
+          Text(
+            'Booking ID: $bookingId',
+            style:
+                const TextStyle(
+              color:
+                  Color(0xFF71869D),
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================
+// ADMIN BOOKING PAGE
+// ============================================================
+
+class AdminBookingPage
+    extends StatelessWidget {
+  const AdminBookingPage({super.key});
+
+  Future<void> updateStatus(
+    String bookingId,
+    String status,
+  ) async {
+    await FirebaseFirestore.instance
+        .collection('bookings')
+        .doc(bookingId)
+        .update({
+      'status': status,
+      'updatedAt':
+          FieldValue.serverTimestamp(),
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title:
+            const Text('Admin Bookings'),
+        centerTitle: true,
+      ),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore
+            .instance
+            .collection('bookings')
+            .orderBy(
+              'createdAt',
+              descending: true,
+            )
+            .snapshots(),
+        builder:
+            (context, snapshot) {
+          if (snapshot.connectionState ==
+              ConnectionState.waiting) {
+            return const Center(
+              child:
+                  CircularProgressIndicator(),
+            );
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding:
+                    const EdgeInsets.all(20),
+                child: Text(
+                  'Admin Error:\n${snapshot.error}',
+                  textAlign:
+                      TextAlign.center,
+                ),
+              ),
+            );
+          }
+
+          final docs =
+              snapshot.data?.docs ?? [];
+
+          if (docs.isEmpty) {
+            return const Center(
+              child: Text(
+                'No bookings found',
+              ),
+            );
+          }
+
+          return ListView.builder(
+            padding:
+                const EdgeInsets.all(15),
+            itemCount: docs.length,
+            itemBuilder:
+                (context, index) {
+              final doc =
+                  docs[index];
+
+              final data =
+                  doc.data()
+                      as Map<String, dynamic>;
+
+              final status =
+                  data['status']
+                          ?.toString() ??
+                      'Pending';
+
+              return Container(
+                margin:
+                    const EdgeInsets.only(
+                  bottom: 15,
+                ),
+                padding:
+                    const EdgeInsets.all(18),
+                decoration:
+                    BoxDecoration(
+                  color:
+                      const Color(0xFF10243B),
+                  borderRadius:
+                      BorderRadius.circular(
+                    20,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons
+                              .admin_panel_settings,
+                          color:
+                              Color(0xFF1687FF),
+                        ),
+                        const SizedBox(
+                          width: 10,
+                        ),
+                        Expanded(
+                          child: Text(
+                            'Booking #${index + 1}',
+                            style:
+                                const TextStyle(
+                              fontSize: 18,
+                              fontWeight:
+                                  FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          status,
+                          style:
+                              const TextStyle(
+                            color:
+                                Color(0xFFFFB020),
+                            fontWeight:
+                                FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(
+                      height: 15,
+                    ),
+
+                    Text(
+                      'Customer: ${data['phone'] ?? 'N/A'}',
+                    ),
+
+                    const SizedBox(
+                      height: 7,
+                    ),
+
+                    Text(
+                      'Pickup: ${data['pickup'] ?? ''}',
+                    ),
+
+                    const SizedBox(
+                      height: 7,
+                    ),
+
+                    Text(
+                      'Drop: ${data['drop'] ?? ''}',
+                    ),
+
+                    const SizedBox(
+                      height: 7,
+                    ),
+
+                    const Text(
+                      'Vehicle: Maruti Ertiga',
+                    ),
+
+                    const SizedBox(
+                      height: 7,
+                    ),
+
+                    Text(
+                      'Booking ID: ${doc.id}',
+                      style:
+                          const TextStyle(
+                        color:
+                            Color(0xFF71869D),
+                        fontSize: 11,
+                      ),
+                    ),
+
+                    const SizedBox(
+                      height: 15,
+                    ),
+
+                    Row(
+                      children: [
+                        Expanded(
+                          child:
+                              ElevatedButton(
+                            onPressed: () {
+                              updateStatus(
+                                doc.id,
+                                'Confirmed',
+                              );
+                            },
+                            style:
+                                ElevatedButton.styleFrom(
+                              backgroundColor:
+                                  const Color(
+                                0xFF1687FF,
+                              ),
+                            ),
+                            child:
+                                const Text(
+                              'CONFIRM',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(
+                          width: 10,
+                        ),
+                        Expanded(
+                          child:
+                              OutlinedButton(
+                            onPressed: () {
+                              updateStatus(
+                                doc.id,
+                                'Cancelled',
+                              );
+                            },
+                            child:
+                                const Text(
+                              'CANCEL',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
       ),
     );
   }
