@@ -423,8 +423,7 @@ class _LoginPageState extends State<LoginPage> {
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
-  static const String adminPhone = '+919002266005';
-
+  static const String adminPhone = '+16505551234';
   bool get isAdmin {
     final user = FirebaseAuth.instance.currentUser;
     return user?.phoneNumber == adminPhone;
@@ -1050,7 +1049,7 @@ class StatusBadge extends StatelessWidget {
 class AdminPanel extends StatelessWidget {
   const AdminPanel({super.key});
 
-  static const String adminPhone = '+919002266005';
+  static const String adminPhone = '+16505551234';
 
   bool get isAdmin {
     final user = FirebaseAuth.instance.currentUser;
