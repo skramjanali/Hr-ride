@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+
 import 'package:flutter_cashfree_pg_sdk/api/cferrorresponse/cferrorresponse.dart';
 import 'package:flutter_cashfree_pg_sdk/api/cfpg/cfpg.dart';
 import 'package:flutter_cashfree_pg_sdk/api/cfsession/cfsession.dart';
@@ -19,14 +20,19 @@ Future<void> main() async {
 
   try {
     await GoogleSignIn.instance.initialize(
-  serverClientId: '383829745014-1m58ttp9dj4dqike8ot15uva7vnbajua.apps.googleusercontent.com',
-);
+      serverClientId:
+          '383829745014-1m58ttp9dj4dqike8ot15uva7vnbajua.apps.googleusercontent.com',
+    );
   } catch (e) {
     debugPrint('Google Sign-In initialization error: $e');
   }
 
   runApp(const HRRideApp());
 }
+
+// ============================================================
+// APP
+// ============================================================
 
 class HRRideApp extends StatelessWidget {
   const HRRideApp({super.key});
@@ -91,7 +97,6 @@ class _LoginPageState extends State<LoginPage> {
     try {
       await FirebaseAuth.instance.verifyPhoneNumber(
         phoneNumber: phone,
-
         verificationCompleted:
             (PhoneAuthCredential credential) async {
           try {
@@ -110,7 +115,6 @@ class _LoginPageState extends State<LoginPage> {
             showError('Firebase Error:\n$e');
           }
         },
-
         verificationFailed: (FirebaseAuthException e) {
           if (!mounted) return;
 
@@ -122,7 +126,6 @@ class _LoginPageState extends State<LoginPage> {
             '${e.message ?? ''}',
           );
         },
-
         codeSent: (
           String id,
           int? resendToken,
@@ -141,7 +144,6 @@ class _LoginPageState extends State<LoginPage> {
             ),
           );
         },
-
         codeAutoRetrievalTimeout: (String id) {
           verificationId = id;
         },
@@ -430,6 +432,7 @@ class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
   static const String adminPhone = '+16505551234';
+
   bool get isAdmin {
     final user = FirebaseAuth.instance.currentUser;
     return user?.phoneNumber == adminPhone;
@@ -460,7 +463,6 @@ class HomePage extends StatelessWidget {
             ),
         ],
       ),
-
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(22),
         child: Column(
@@ -646,19 +648,32 @@ class _BookingPageState extends State<BookingPage> {
   static const double minimumKm = 200;
   static const double holdingRate = 100;
 
-  double get rate => vehicleType == 'AC' ? acRate : nonAcRate;
+  double get rate {
+    return vehicleType == 'AC' ? acRate : nonAcRate;
+  }
 
   double get enteredKm {
-    return double.tryParse(distanceController.text.trim()) ?? 0;
+    return double.tryParse(
+          distanceController.text.trim(),
+        ) ??
+        0;
   }
 
   double get holdingHours {
-    return double.tryParse(holdingController.text.trim()) ?? 0;
+    return double.tryParse(
+          holdingController.text.trim(),
+        ) ??
+        0;
   }
 
   double get chargeableKm {
-    if (enteredKm <= 0) return 0;
-    return enteredKm < minimumKm ? minimumKm : enteredKm;
+    if (enteredKm <= 0) {
+      return 0;
+    }
+
+    return enteredKm < minimumKm
+        ? minimumKm
+        : enteredKm;
   }
 
   double get distanceFare {
@@ -688,7 +703,9 @@ class _BookingPageState extends State<BookingPage> {
       context: context,
       initialDate: now,
       firstDate: now,
-      lastDate: DateTime(now.year + 2),
+      lastDate: DateTime(
+        now.year + 2,
+      ),
       helpText: 'Select Travel Date',
     );
 
@@ -704,29 +721,40 @@ class _BookingPageState extends State<BookingPage> {
     final drop = dropController.text.trim();
 
     if (pickup.isEmpty || drop.isEmpty) {
-      showError('Please enter pickup and drop location');
+      showError(
+        'Please enter pickup and drop location',
+      );
       return;
     }
 
     if (enteredKm <= 0) {
-      showError('Please enter distance in KM');
+      showError(
+        'Please enter distance in KM',
+      );
       return;
     }
 
     if (travelDate == null) {
-      showError('Please select travel date');
+      showError(
+        'Please select travel date',
+      );
       return;
     }
 
     if (holdingHours < 0) {
-      showError('Invalid holding hours');
+      showError(
+        'Invalid holding hours',
+      );
       return;
     }
 
-    final user = FirebaseAuth.instance.currentUser;
+    final user =
+        FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      showError('Please login first');
+      showError(
+        'Please login first',
+      );
       return;
     }
 
@@ -744,26 +772,36 @@ class _BookingPageState extends State<BookingPage> {
         'userEmail': user.email ?? '',
         'pickup': pickup,
         'drop': drop,
-        'travelDate': Timestamp.fromDate(travelDate!),
+
+        'travelDate':
+            Timestamp.fromDate(travelDate!),
+
         'vehicle': 'Maruti Ertiga',
         'vehicleType': vehicleType,
         'mileage': '22 km/l',
         'region': 'West Bengal',
+
         'distanceKm': enteredKm,
         'chargeableKm': chargeableKm,
         'ratePerKm': rate,
+
         'holdingHours': holdingHours,
         'holdingRate': holdingRate,
+
         'distanceFare': distanceFare,
         'holdingFare': holdingFare,
+
         'totalAmount': totalFare,
         'advanceAmount': advanceAmount,
         'balanceAmount': balanceAmount,
+
         'paymentStatus': 'Pending',
         'paymentId': '',
         'orderId': '',
+
         'status': 'Pending',
-        'createdAt': FieldValue.serverTimestamp(),
+        'createdAt':
+            FieldValue.serverTimestamp(),
       });
 
       if (!mounted) return;
@@ -773,19 +811,30 @@ class _BookingPageState extends State<BookingPage> {
       showDialog(
         context: context,
         builder: (_) => AlertDialog(
-          title: const Text('Booking Submitted'),
-          content: Text(
-            'Pickup: $pickup\n'
-            'Drop: $drop\n\n'
-            'Vehicle: Maruti Ertiga\n'
-            'Type: $vehicleType\n'
-            'Distance: ${enteredKm.toStringAsFixed(0)} km\n'
-            'Chargeable: ${chargeableKm.toStringAsFixed(0)} km\n'
-            'Holding: ${holdingHours.toStringAsFixed(1)} hour\n\n'
-            'Total: ₹${totalFare.toStringAsFixed(0)}\n'
-            'Advance (30%): ₹${advanceAmount.toStringAsFixed(0)}\n'
-            'Balance (70%): ₹${balanceAmount.toStringAsFixed(0)}\n\n'
-            'Status: Pending',
+          title: const Text(
+            'Booking Submitted',
+          ),
+          content: SingleChildScrollView(
+            child: Text(
+              'Pickup: $pickup\n\n'
+              'Drop: $drop\n\n'
+              'Vehicle: Maruti Ertiga\n'
+              'Type: $vehicleType\n'
+              'Travel Date: ${formatDate(travelDate)}\n\n'
+              'Distance: '
+              '${enteredKm.toStringAsFixed(0)} km\n'
+              'Chargeable: '
+              '${chargeableKm.toStringAsFixed(0)} km\n'
+              'Holding: '
+              '${holdingHours.toStringAsFixed(1)} hour\n\n'
+              'Total: '
+              '₹${totalFare.toStringAsFixed(0)}\n'
+              'Advance (30%): '
+              '₹${advanceAmount.toStringAsFixed(0)}\n'
+              'Balance (70%): '
+              '₹${balanceAmount.toStringAsFixed(0)}\n\n'
+              'Status: Pending',
+            ),
           ),
           actions: [
             TextButton(
@@ -803,18 +852,24 @@ class _BookingPageState extends State<BookingPage> {
 
       setState(() => loading = false);
 
-      showError('Booking Error:\n$e');
+      showError(
+        'Booking Error:\n$e',
+      );
     }
   }
 
   void showError(String text) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(text)),
+      SnackBar(
+        content: Text(text),
+      ),
     );
   }
 
   String formatDate(DateTime? date) {
-    if (date == null) return 'Select travel date';
+    if (date == null) {
+      return 'Select travel date';
+    }
 
     return '${date.day.toString().padLeft(2, '0')}/'
         '${date.month.toString().padLeft(2, '0')}/'
@@ -834,7 +889,9 @@ class _BookingPageState extends State<BookingPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Book Your Ride'),
+        title: const Text(
+          'Book Your Ride',
+        ),
         centerTitle: true,
       ),
       body: SingleChildScrollView(
@@ -861,11 +918,14 @@ class _BookingPageState extends State<BookingPage> {
               decoration: InputDecoration(
                 labelText: 'Pickup Location',
                 hintText: 'Enter pickup',
-                prefixIcon: const Icon(Icons.my_location),
+                prefixIcon:
+                    const Icon(Icons.my_location),
                 filled: true,
-                fillColor: const Color(0xFF10243B),
+                fillColor:
+                    const Color(0xFF10243B),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius:
+                      BorderRadius.circular(18),
                   borderSide: BorderSide.none,
                 ),
               ),
@@ -878,31 +938,33 @@ class _BookingPageState extends State<BookingPage> {
               decoration: InputDecoration(
                 labelText: 'Drop Location',
                 hintText: 'Enter destination',
-                prefixIcon: const Icon(Icons.location_on),
+                prefixIcon:
+                    const Icon(Icons.location_on),
                 filled: true,
-                fillColor: const Color(0xFF10243B),
+                fillColor:
+                    const Color(0xFF10243B),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius:
+                      BorderRadius.circular(18),
                   borderSide: BorderSide.none,
                 ),
               ),
             ),
 
-            const SizedBox(height: 18),
+            const SizedBox(height: 20),
 
-            // AC / NON-AC
-            Align(
+            const Align(
               alignment: Alignment.centerLeft,
               child: Text(
                 'Select Vehicle Type',
                 style: TextStyle(
-                  color: Colors.white.withOpacity(.75),
                   fontSize: 15,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ),
 
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
 
             Row(
               children: [
@@ -914,12 +976,14 @@ class _BookingPageState extends State<BookingPage> {
                         child: Text(
                           'AC • ₹20/km',
                           style: TextStyle(
-                            fontWeight: FontWeight.bold,
+                            fontWeight:
+                                FontWeight.bold,
                           ),
                         ),
                       ),
                     ),
-                    selected: vehicleType == 'AC',
+                    selected:
+                        vehicleType == 'AC',
                     onSelected: (_) {
                       setState(() {
                         vehicleType = 'AC';
@@ -927,7 +991,9 @@ class _BookingPageState extends State<BookingPage> {
                     },
                   ),
                 ),
+
                 const SizedBox(width: 12),
+
                 Expanded(
                   child: ChoiceChip(
                     label: const SizedBox(
@@ -936,12 +1002,14 @@ class _BookingPageState extends State<BookingPage> {
                         child: Text(
                           'Non-AC • ₹17/km',
                           style: TextStyle(
-                            fontWeight: FontWeight.bold,
+                            fontWeight:
+                                FontWeight.bold,
                           ),
                         ),
                       ),
                     ),
-                    selected: vehicleType == 'Non-AC',
+                    selected:
+                        vehicleType == 'Non-AC',
                     onSelected: (_) {
                       setState(() {
                         vehicleType = 'Non-AC';
@@ -952,24 +1020,29 @@ class _BookingPageState extends State<BookingPage> {
               ],
             ),
 
-            const SizedBox(height: 18),
+            const SizedBox(height: 20),
 
-            // DISTANCE
             TextField(
               controller: distanceController,
-              keyboardType: const TextInputType.numberWithOptions(
+              keyboardType:
+                  const TextInputType.numberWithOptions(
                 decimal: true,
               ),
-              onChanged: (_) => setState(() {}),
+              onChanged: (_) {
+                setState(() {});
+              },
               decoration: InputDecoration(
                 labelText: 'Distance (KM)',
                 hintText: 'Example: 250',
-                prefixIcon: const Icon(Icons.route),
+                prefixIcon:
+                    const Icon(Icons.route),
                 suffixText: 'KM',
                 filled: true,
-                fillColor: const Color(0xFF10243B),
+                fillColor:
+                    const Color(0xFF10243B),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius:
+                      BorderRadius.circular(18),
                   borderSide: BorderSide.none,
                 ),
               ),
@@ -977,7 +1050,7 @@ class _BookingPageState extends State<BookingPage> {
 
             const SizedBox(height: 8),
 
-            Align(
+            const Align(
               alignment: Alignment.centerLeft,
               child: Text(
                 'Minimum billing: 200 KM',
@@ -990,22 +1063,27 @@ class _BookingPageState extends State<BookingPage> {
 
             const SizedBox(height: 18),
 
-            // HOLDING
             TextField(
               controller: holdingController,
-              keyboardType: const TextInputType.numberWithOptions(
+              keyboardType:
+                  const TextInputType.numberWithOptions(
                 decimal: true,
               ),
-              onChanged: (_) => setState(() {}),
+              onChanged: (_) {
+                setState(() {});
+              },
               decoration: InputDecoration(
                 labelText: 'Holding Hours',
                 hintText: 'Example: 2',
-                prefixIcon: const Icon(Icons.access_time),
+                prefixIcon:
+                    const Icon(Icons.access_time),
                 suffixText: '₹100/hour',
                 filled: true,
-                fillColor: const Color(0xFF10243B),
+                fillColor:
+                    const Color(0xFF10243B),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius:
+                      BorderRadius.circular(18),
                   borderSide: BorderSide.none,
                 ),
               ),
@@ -1013,22 +1091,26 @@ class _BookingPageState extends State<BookingPage> {
 
             const SizedBox(height: 18),
 
-            // DATE
             InkWell(
               onTap: selectTravelDate,
-              borderRadius: BorderRadius.circular(18),
+              borderRadius:
+                  BorderRadius.circular(18),
               child: Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(18),
+                padding:
+                    const EdgeInsets.all(18),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF10243B),
-                  borderRadius: BorderRadius.circular(18),
+                  color:
+                      const Color(0xFF10243B),
+                  borderRadius:
+                      BorderRadius.circular(18),
                 ),
                 child: Row(
                   children: [
                     const Icon(
                       Icons.calendar_month,
-                      color: Color(0xFF1687FF),
+                      color:
+                          Color(0xFF1687FF),
                     ),
                     const SizedBox(width: 14),
                     Expanded(
@@ -1040,21 +1122,30 @@ class _BookingPageState extends State<BookingPage> {
                             'Travel Date',
                             style: TextStyle(
                               fontSize: 13,
-                              color: Colors.white70,
+                              color:
+                                  Colors.white70,
                             ),
                           ),
-                          const SizedBox(height: 5),
+                          const SizedBox(
+                              height: 5),
                           Text(
-                            formatDate(travelDate),
-                            style: const TextStyle(
+                            formatDate(
+                              travelDate,
+                            ),
+                            style:
+                                const TextStyle(
                               fontSize: 17,
-                              fontWeight: FontWeight.bold,
+                              fontWeight:
+                                  FontWeight.bold,
                             ),
                           ),
                         ],
                       ),
                     ),
-                    const Icon(Icons.arrow_forward_ios, size: 17),
+                    const Icon(
+                      Icons.arrow_forward_ios,
+                      size: 17,
+                    ),
                   ],
                 ),
               ),
@@ -1062,55 +1153,61 @@ class _BookingPageState extends State<BookingPage> {
 
             const SizedBox(height: 25),
 
-            // FARE SUMMARY
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(20),
+              padding:
+                  const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
+                gradient:
+                    const LinearGradient(
                   colors: [
                     Color(0xFF10243B),
                     Color(0xFF0B2942),
                   ],
                 ),
-                borderRadius: BorderRadius.circular(22),
+                borderRadius:
+                    BorderRadius.circular(22),
               ),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
                 children: [
                   const Text(
                     'FARE SUMMARY',
                     style: TextStyle(
                       fontSize: 17,
-                      fontWeight: FontWeight.bold,
+                      fontWeight:
+                          FontWeight.bold,
                     ),
                   ),
 
                   const SizedBox(height: 15),
 
-                  _fareRow(
+                  fareRow(
                     'Rate',
                     '₹${rate.toStringAsFixed(0)}/km',
                   ),
 
-                  _fareRow(
+                  fareRow(
                     'Chargeable Distance',
                     '${chargeableKm.toStringAsFixed(0)} km',
                   ),
 
-                  _fareRow(
+                  fareRow(
                     'Distance Fare',
                     '₹${distanceFare.toStringAsFixed(0)}',
                   ),
 
-                  _fareRow(
+                  fareRow(
                     'Holding',
                     '₹${holdingFare.toStringAsFixed(0)}',
                   ),
 
-                  const Divider(height: 25),
+                  const Divider(
+                    height: 25,
+                  ),
 
-                  _fareRow(
+                  fareRow(
                     'TOTAL',
                     '₹${totalFare.toStringAsFixed(0)}',
                     bold: true,
@@ -1118,12 +1215,12 @@ class _BookingPageState extends State<BookingPage> {
 
                   const SizedBox(height: 8),
 
-                  _fareRow(
+                  fareRow(
                     'Advance • 30%',
                     '₹${advanceAmount.toStringAsFixed(0)}',
                   ),
 
-                  _fareRow(
+                  fareRow(
                     'Balance • 70%',
                     '₹${balanceAmount.toStringAsFixed(0)}',
                   ),
@@ -1137,7 +1234,10 @@ class _BookingPageState extends State<BookingPage> {
               width: double.infinity,
               height: 58,
               child: ElevatedButton(
-                onPressed: loading ? null : confirmBooking,
+                onPressed:
+                    loading
+                        ? null
+                        : confirmBooking,
                 child: loading
                     ? const CircularProgressIndicator(
                         color: Colors.white,
@@ -1146,7 +1246,8 @@ class _BookingPageState extends State<BookingPage> {
                         'CONFIRM BOOKING',
                         style: TextStyle(
                           fontSize: 17,
-                          fontWeight: FontWeight.bold,
+                          fontWeight:
+                              FontWeight.bold,
                         ),
                       ),
               ),
@@ -1158,7 +1259,8 @@ class _BookingPageState extends State<BookingPage> {
               '30% advance payment will be collected online.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: Colors.white.withOpacity(.55),
+                color:
+                    Colors.white.withOpacity(.55),
                 fontSize: 13,
               ),
             ),
@@ -1168,178 +1270,41 @@ class _BookingPageState extends State<BookingPage> {
     );
   }
 
-  Widget _fareRow(
+  Widget fareRow(
     String title,
     String value, {
     bool bold = false,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
+      padding:
+          const EdgeInsets.symmetric(
+        vertical: 5,
+      ),
       child: Row(
         children: [
           Expanded(
             child: Text(
               title,
               style: TextStyle(
-                fontWeight:
-                    bold ? FontWeight.bold : FontWeight.normal,
-                fontSize: bold ? 17 : 14,
+                fontWeight: bold
+                    ? FontWeight.bold
+                    : FontWeight.normal,
+                fontSize:
+                    bold ? 17 : 14,
               ),
             ),
           ),
           Text(
             value,
             style: TextStyle(
-              fontWeight:
-                  bold ? FontWeight.bold : FontWeight.w600,
-              fontSize: bold ? 19 : 14,
+              fontWeight: bold
+                  ? FontWeight.bold
+                  : FontWeight.w600,
+              fontSize:
+                  bold ? 19 : 14,
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-    } catch (e) {
-      if (!mounted) return;
-
-      setState(() => loading = false);
-
-      showError('Booking Error:\n$e');
-    }
-  }
-
-  void showError(String text) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(text)),
-    );
-  }
-
-  @override
-  void dispose() {
-    pickupController.dispose();
-    dropController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Book Your Ride'),
-        centerTitle: true,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            const SizedBox(height: 10),
-
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Where are you going?',
-                style: TextStyle(
-                  fontSize: 27,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 25),
-
-            TextField(
-              controller: pickupController,
-              decoration: InputDecoration(
-                labelText: 'Pickup Location',
-                hintText: 'Enter pickup',
-                prefixIcon: const Icon(Icons.my_location),
-                filled: true,
-                fillColor: const Color(0xFF10243B),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(18),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 18),
-
-            TextField(
-              controller: dropController,
-              decoration: InputDecoration(
-                labelText: 'Drop Location',
-                hintText: 'Enter destination',
-                prefixIcon: const Icon(Icons.location_on),
-                filled: true,
-                fillColor: const Color(0xFF10243B),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(18),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 25),
-
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: const Color(0xFF10243B),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Row(
-                children: [
-                  Icon(
-                    Icons.directions_car,
-                    size: 50,
-                    color: Color(0xFF1687FF),
-                  ),
-                  SizedBox(width: 16),
-                  Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Maruti Ertiga',
-                        style: TextStyle(
-                          fontSize: 19,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      SizedBox(height: 5),
-                      Text('HR RIDE • West Bengal'),
-                      SizedBox(height: 3),
-                      Text('22 km/l'),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 28),
-
-            SizedBox(
-              width: double.infinity,
-              height: 58,
-              child: ElevatedButton(
-                onPressed: loading ? null : confirmBooking,
-                child: loading
-                    ? const CircularProgressIndicator(
-                        color: Colors.white,
-                      )
-                    : const Text(
-                        'CONFIRM BOOKING',
-                        style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -1354,30 +1319,38 @@ class MyBookingsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
+    final user =
+        FirebaseAuth.instance.currentUser;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Bookings'),
+        title: const Text(
+          'My Bookings',
+        ),
         centerTitle: true,
       ),
       body: user == null
           ? const Center(
-              child: Text('Please login first'),
+              child: Text(
+                'Please login first',
+              ),
             )
           : StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
+              stream: FirebaseFirestore
+                  .instance
                   .collection('bookings')
                   .where(
                     'userId',
                     isEqualTo: user.uid,
                   )
                   .snapshots(),
-              builder: (context, snapshot) {
+              builder:
+                  (context, snapshot) {
                 if (snapshot.connectionState ==
                     ConnectionState.waiting) {
                   return const Center(
-                    child: CircularProgressIndicator(),
+                    child:
+                        CircularProgressIndicator(),
                   );
                 }
 
@@ -1390,43 +1363,65 @@ class MyBookingsPage extends StatelessWidget {
                 }
 
                 final docs =
-                    snapshot.data?.docs ?? [];
+                    snapshot.data?.docs ??
+                        [];
 
                 if (docs.isEmpty) {
                   return const Center(
-                    child: Text('No bookings yet'),
+                    child: Text(
+                      'No bookings yet',
+                    ),
                   );
                 }
 
                 final bookings = [...docs];
 
                 bookings.sort((a, b) {
+                  final aData =
+                      a.data()
+                          as Map<String,
+                              dynamic>;
+
+                  final bData =
+                      b.data()
+                          as Map<String,
+                              dynamic>;
+
                   final aTime =
-                      (a.data()
-                              as Map<String, dynamic>)['createdAt']
+                      aData['createdAt']
                           as Timestamp?;
 
                   final bTime =
-                      (b.data()
-                              as Map<String, dynamic>)['createdAt']
+                      bData['createdAt']
                           as Timestamp?;
 
-                  return (bTime?.millisecondsSinceEpoch ?? 0)
-                      .compareTo(
-                    aTime?.millisecondsSinceEpoch ?? 0,
+                  return
+                      (bTime?.millisecondsSinceEpoch ??
+                              0)
+                          .compareTo(
+                    aTime
+                            ?.millisecondsSinceEpoch ??
+                        0,
                   );
                 });
 
                 return ListView.builder(
-                  padding: const EdgeInsets.all(20),
-                  itemCount: bookings.length,
-                  itemBuilder: (context, index) {
-                    final data = bookings[index].data()
-                        as Map<String, dynamic>;
+                  padding:
+                      const EdgeInsets.all(20),
+                  itemCount:
+                      bookings.length,
+                  itemBuilder:
+                      (context, index) {
+                    final data =
+                        bookings[index]
+                                .data()
+                            as Map<String,
+                                dynamic>;
 
                     return BookingCard(
                       data: data,
-                      bookingId: bookings[index].id,
+                      bookingId:
+                          bookings[index].id,
                     );
                   },
                 );
@@ -1435,6 +1430,10 @@ class MyBookingsPage extends StatelessWidget {
     );
   }
 }
+
+// ============================================================
+// BOOKING CARD
+// ============================================================
 
 class BookingCard extends StatelessWidget {
   final Map<String, dynamic> data;
@@ -1446,17 +1445,50 @@ class BookingCard extends StatelessWidget {
     required this.bookingId,
   });
 
+  String formatBookingDate() {
+    final value = data['travelDate'];
+
+    if (value is Timestamp) {
+      final date = value.toDate();
+
+      return '${date.day.toString().padLeft(2, '0')}/'
+          '${date.month.toString().padLeft(2, '0')}/'
+          '${date.year}';
+    }
+
+    return 'Not selected';
+  }
+
   @override
   Widget build(BuildContext context) {
     final status =
-        data['status']?.toString() ?? 'Pending';
+        data['status']?.toString() ??
+            'Pending';
+
+    final paymentStatus =
+        data['paymentStatus']
+                ?.toString() ??
+            'Pending';
+
+    final total =
+        data['totalAmount'];
+
+    final advance =
+        data['advanceAmount'];
+
+    final balance =
+        data['balanceAmount'];
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 18),
-      padding: const EdgeInsets.all(22),
+      margin:
+          const EdgeInsets.only(bottom: 18),
+      padding:
+          const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: const Color(0xFF0B2942),
-        borderRadius: BorderRadius.circular(24),
+        color:
+            const Color(0xFF0B2942),
+        borderRadius:
+            BorderRadius.circular(24),
       ),
       child: Column(
         crossAxisAlignment:
@@ -1466,7 +1498,8 @@ class BookingCard extends StatelessWidget {
             children: [
               const Icon(
                 Icons.directions_car,
-                color: Color(0xFF1687FF),
+                color:
+                    Color(0xFF1687FF),
                 size: 42,
               ),
               const SizedBox(width: 12),
@@ -1475,26 +1508,97 @@ class BookingCard extends StatelessWidget {
                   'Maruti Ertiga',
                   style: TextStyle(
                     fontSize: 22,
-                    fontWeight: FontWeight.bold,
+                    fontWeight:
+                        FontWeight.bold,
                   ),
                 ),
               ),
-              StatusBadge(status: status),
+              StatusBadge(
+                status: status,
+              ),
             ],
           ),
 
           const SizedBox(height: 18),
 
-          Text('Pickup: ${data['pickup'] ?? ''}'),
+          Text(
+            'Pickup: ${data['pickup'] ?? ''}',
+          ),
+
           const SizedBox(height: 10),
-          Text('Drop: ${data['drop'] ?? ''}'),
+
+          Text(
+            'Drop: ${data['drop'] ?? ''}',
+          ),
+
+          const SizedBox(height: 10),
+
+          Text(
+            'Travel Date: ${formatBookingDate()}',
+          ),
+
+          const SizedBox(height: 10),
+
+          Text(
+            'Type: ${data['vehicleType'] ?? ''}',
+          ),
+
+          const SizedBox(height: 10),
+
+          Text(
+            'Distance: ${data['distanceKm'] ?? 0} km',
+          ),
+
+          const SizedBox(height: 10),
+
+          Text(
+            'Holding: ${data['holdingHours'] ?? 0} hour',
+          ),
+
+          const SizedBox(height: 14),
+
+          Text(
+            'Total: ₹${total ?? 0}',
+            style: const TextStyle(
+              fontWeight:
+                  FontWeight.bold,
+              fontSize: 16,
+            ),
+          ),
+
+          const SizedBox(height: 6),
+
+          Text(
+            'Advance: ₹${advance ?? 0}',
+          ),
+
+          const SizedBox(height: 6),
+
+          Text(
+            'Balance: ₹${balance ?? 0}',
+          ),
+
+          const SizedBox(height: 10),
+
+          Text(
+            'Payment: $paymentStatus',
+            style: TextStyle(
+              color: paymentStatus ==
+                      'PAID'
+                  ? Colors.greenAccent
+                  : Colors.orangeAccent,
+              fontWeight:
+                  FontWeight.bold,
+            ),
+          ),
 
           const SizedBox(height: 12),
 
           Text(
             '22 km/l • West Bengal',
             style: TextStyle(
-              color: Colors.white.withOpacity(.65),
+              color: Colors.white
+                  .withOpacity(.65),
             ),
           ),
 
@@ -1503,7 +1607,8 @@ class BookingCard extends StatelessWidget {
           Text(
             'Booking ID: $bookingId',
             style: TextStyle(
-              color: Colors.white.withOpacity(.45),
+              color: Colors.white
+                  .withOpacity(.45),
               fontSize: 12,
             ),
           ),
@@ -1512,6 +1617,10 @@ class BookingCard extends StatelessWidget {
     );
   }
 }
+
+// ============================================================
+// STATUS BADGE
+// ============================================================
 
 class StatusBadge extends StatelessWidget {
   final String status;
@@ -1524,27 +1633,34 @@ class StatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
+      padding:
+          const EdgeInsets.symmetric(
         horizontal: 14,
         vertical: 9,
       ),
       decoration: BoxDecoration(
         color: status == 'Confirmed'
-            ? Colors.green.withOpacity(.25)
+            ? Colors.green
+                .withOpacity(.25)
             : status == 'Rejected'
-                ? Colors.red.withOpacity(.25)
-                : Colors.orange.withOpacity(.25),
-        borderRadius: BorderRadius.circular(30),
+                ? Colors.red
+                    .withOpacity(.25)
+                : Colors.orange
+                    .withOpacity(.25),
+        borderRadius:
+            BorderRadius.circular(30),
       ),
       child: Text(
         status,
         style: TextStyle(
-          color: status == 'Confirmed'
+          color: status ==
+                  'Confirmed'
               ? Colors.greenAccent
               : status == 'Rejected'
                   ? Colors.redAccent
                   : Colors.orangeAccent,
-          fontWeight: FontWeight.bold,
+          fontWeight:
+              FontWeight.bold,
         ),
       ),
     );
@@ -1558,11 +1674,15 @@ class StatusBadge extends StatelessWidget {
 class AdminPanel extends StatelessWidget {
   const AdminPanel({super.key});
 
-  static const String adminPhone = '+16505551234';
+  static const String adminPhone =
+      '+16505551234';
 
   bool get isAdmin {
-    final user = FirebaseAuth.instance.currentUser;
-    return user?.phoneNumber == adminPhone;
+    final user =
+        FirebaseAuth.instance.currentUser;
+
+    return user?.phoneNumber ==
+        adminPhone;
   }
 
   Future<void> updateBooking(
@@ -1576,22 +1696,27 @@ class AdminPanel extends StatelessWidget {
           .doc(bookingId)
           .update({
         'status': status,
-        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedAt':
+            FieldValue.serverTimestamp(),
       });
 
       if (!context.mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
         SnackBar(
-          content: Text('Booking $status'),
+          content:
+              Text('Booking $status'),
         ),
       );
     } catch (e) {
       if (!context.mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
         SnackBar(
-          content: Text('Update Error:\n$e'),
+          content:
+              Text('Update Error:\n$e'),
         ),
       );
     }
@@ -1602,14 +1727,16 @@ class AdminPanel extends StatelessWidget {
     if (!isAdmin) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text('Admin Panel'),
+          title:
+              const Text('Admin Panel'),
         ),
         body: const Center(
           child: Text(
             'Admin access denied',
             style: TextStyle(
               fontSize: 20,
-              fontWeight: FontWeight.bold,
+              fontWeight:
+                  FontWeight.bold,
             ),
           ),
         ),
@@ -1621,7 +1748,8 @@ class AdminPanel extends StatelessWidget {
         title: const Text(
           'HR RIDE ADMIN',
           style: TextStyle(
-            fontWeight: FontWeight.bold,
+            fontWeight:
+                FontWeight.bold,
           ),
         ),
         centerTitle: true,
@@ -1630,11 +1758,13 @@ class AdminPanel extends StatelessWidget {
         stream: FirebaseFirestore.instance
             .collection('bookings')
             .snapshots(),
-        builder: (context, snapshot) {
+        builder:
+            (context, snapshot) {
           if (snapshot.connectionState ==
               ConnectionState.waiting) {
             return const Center(
-              child: CircularProgressIndicator(),
+              child:
+                  CircularProgressIndicator(),
             );
           }
 
@@ -1653,95 +1783,242 @@ class AdminPanel extends StatelessWidget {
             return const Center(
               child: Text(
                 'No bookings available',
-                style: TextStyle(fontSize: 18),
+                style: TextStyle(
+                  fontSize: 18,
+                ),
               ),
             );
           }
 
           return ListView.builder(
-            padding: const EdgeInsets.all(18),
+            padding:
+                const EdgeInsets.all(18),
             itemCount: docs.length,
-            itemBuilder: (context, index) {
+            itemBuilder:
+                (context, index) {
               final doc = docs[index];
 
               final data =
-                  doc.data() as Map<String, dynamic>;
+                  doc.data()
+                      as Map<String,
+                          dynamic>;
 
               final status =
-                  data['status']?.toString() ?? 'Pending';
+                  data['status']
+                          ?.toString() ??
+                      'Pending';
+
+              final customerName =
+                  data['userName']
+                          ?.toString() ??
+                      '';
+
+              final customerEmail =
+                  data['userEmail']
+                          ?.toString() ??
+                      '';
+
+              final customerPhone =
+                  data['userPhone']
+                          ?.toString() ??
+                      '';
+
+              String customer;
+
+              if (customerName
+                      .isNotEmpty) {
+                customer =
+                    '$customerName\n'
+                    '$customerEmail';
+              } else if (customerEmail
+                  .isNotEmpty) {
+                customer =
+                    customerEmail;
+              } else {
+                customer =
+                    customerPhone;
+              }
+
+              final total =
+                  data['totalAmount'];
+
+              final advance =
+                  data['advanceAmount'];
+
+              final paymentStatus =
+                  data['paymentStatus']
+                          ?.toString() ??
+                      'Pending';
 
               return Container(
                 margin:
-                    const EdgeInsets.only(bottom: 18),
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF10243B),
+                    const EdgeInsets.only(
+                  bottom: 18,
+                ),
+                padding:
+                    const EdgeInsets.all(20),
+                decoration:
+                    BoxDecoration(
+                  color:
+                      const Color(0xFF10243B),
                   borderRadius:
-                      BorderRadius.circular(22),
+                      BorderRadius.circular(
+                    22,
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                      CrossAxisAlignment
+                          .start,
                   children: [
                     Row(
                       children: [
                         const Icon(
-                          Icons.directions_car,
-                          color: Color(0xFF1687FF),
+                          Icons
+                              .directions_car,
+                          color:
+                              Color(0xFF1687FF),
                           size: 40,
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(
+                          width: 12,
+                        ),
                         const Expanded(
                           child: Text(
                             'Maruti Ertiga',
-                            style: TextStyle(
+                            style:
+                                TextStyle(
                               fontSize: 21,
                               fontWeight:
-                                  FontWeight.bold,
+                                  FontWeight
+                                      .bold,
                             ),
                           ),
                         ),
                         StatusBadge(
-                          status: status,
+                          status:
+                              status,
                         ),
                       ],
                     ),
 
-                    const SizedBox(height: 18),
+                    const SizedBox(
+                      height: 18,
+                    ),
 
                     Text(
                       'Pickup: ${data['pickup'] ?? ''}',
-                      style: const TextStyle(
+                      style:
+                          const TextStyle(
                         fontSize: 16,
                       ),
                     ),
 
-                    const SizedBox(height: 10),
+                    const SizedBox(
+                      height: 10,
+                    ),
 
                     Text(
                       'Drop: ${data['drop'] ?? ''}',
-                      style: const TextStyle(
+                      style:
+                          const TextStyle(
                         fontSize: 16,
                       ),
                     ),
 
-                    const SizedBox(height: 10),
+                    const SizedBox(
+                      height: 10,
+                    ),
 
                     Text(
-                      'Customer: ${data['userPhone'] ?? ''}',
+                      'Customer:\n$customer',
                       style: TextStyle(
-                        color:
-                            Colors.white.withOpacity(.65),
+                        color: Colors.white
+                            .withOpacity(.65),
                       ),
                     ),
 
-                    const SizedBox(height: 18),
+                    const SizedBox(
+                      height: 12,
+                    ),
 
-                    if (status == 'Pending')
+                    Text(
+                      'Vehicle Type: '
+                      '${data['vehicleType'] ?? ''}',
+                    ),
+
+                    const SizedBox(
+                      height: 8,
+                    ),
+
+                    Text(
+                      'Distance: '
+                      '${data['distanceKm'] ?? 0} km',
+                    ),
+
+                    const SizedBox(
+                      height: 8,
+                    ),
+
+                    Text(
+                      'Holding: '
+                      '${data['holdingHours'] ?? 0} hour',
+                    ),
+
+                    const SizedBox(
+                      height: 12,
+                    ),
+
+                    Text(
+                      'Total: ₹${total ?? 0}',
+                      style:
+                          const TextStyle(
+                        fontWeight:
+                            FontWeight.bold,
+                      ),
+                    ),
+
+                    const SizedBox(
+                      height: 6,
+                    ),
+
+                    Text(
+                      'Advance: ₹${advance ?? 0}',
+                    ),
+
+                    const SizedBox(
+                      height: 6,
+                    ),
+
+                    Text(
+                      'Payment: '
+                      '$paymentStatus',
+                      style: TextStyle(
+                        color:
+                            paymentStatus ==
+                                    'PAID'
+                                ? Colors
+                                    .greenAccent
+                                : Colors
+                                    .orangeAccent,
+                        fontWeight:
+                            FontWeight
+                                .bold,
+                      ),
+                    ),
+
+                    const SizedBox(
+                      height: 18,
+                    ),
+
+                    if (status ==
+                        'Pending')
                       Row(
                         children: [
                           Expanded(
-                            child: ElevatedButton.icon(
+                            child:
+                                ElevatedButton
+                                    .icon(
                               onPressed: () {
                                 updateBooking(
                                   context,
@@ -1749,18 +2026,25 @@ class AdminPanel extends StatelessWidget {
                                   'Confirmed',
                                 );
                               },
-                              icon: const Icon(
+                              icon:
+                                  const Icon(
                                 Icons.check,
                               ),
                               label:
-                                  const Text('ACCEPT'),
+                                  const Text(
+                                'ACCEPT',
+                              ),
                             ),
                           ),
 
-                          const SizedBox(width: 12),
+                          const SizedBox(
+                            width: 12,
+                          ),
 
                           Expanded(
-                            child: OutlinedButton.icon(
+                            child:
+                                OutlinedButton
+                                    .icon(
                               onPressed: () {
                                 updateBooking(
                                   context,
@@ -1768,11 +2052,14 @@ class AdminPanel extends StatelessWidget {
                                   'Rejected',
                                 );
                               },
-                              icon: const Icon(
+                              icon:
+                                  const Icon(
                                 Icons.close,
                               ),
                               label:
-                                  const Text('REJECT'),
+                                  const Text(
+                                'REJECT',
+                              ),
                             ),
                           ),
                         ],
