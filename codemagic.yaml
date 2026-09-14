@@ -8,7 +8,6 @@ workflows:
       flutter: stable
 
     scripts:
-
       - name: Generate Android project
         script: |
           rm -rf android
@@ -21,113 +20,31 @@ workflows:
           python3 - <<'PY'
           from pathlib import Path
 
-          gradle_files = [
-              Path("android/app/build.gradle"),
-              Path("android/app/build.gradle.kts")
-          ]
+          app = Path("android/app/build.gradle")
+          if not app.exists():
+              app = Path("android/app/build.gradle.kts")
 
-          app_gradle = next((p for p in gradle_files if p.exists()), None)
-
-          if app_gradle is None:
-              raise FileNotFoundError("Android app Gradle file not found")
-
-          text = app_gradle.read_text()
+          text = app.read_text()
 
           text = text.replace(
               'applicationId "com.hrride.hr_ride"',
               'applicationId "com.hrride.app"'
           )
-
           text = text.replace(
               'applicationId = "com.hrride.hr_ride"',
               'applicationId = "com.hrride.app"'
           )
 
-          if app_gradle.suffix == ".kts":
-              if 'com.google.gms.google-services' not in text:
-                  text = text.replace(
-                      'plugins {',
-                      'plugins {\n    id("com.google.gms.google-services")',
-                      1
-                  )
-          else:
-              if 'com.google.gms.google-services' not in text:
-                  text = text.replace(
-                      'plugins {',
-                      'plugins {\n    id "com.google.gms.google-services"',
-                      1
-                  )
-
-          app_gradle.write_text(text)
-
-          settings_files = [
-              Path("android/settings.gradle"),
-              Path("android/settings.gradle.kts")
-          ]
-
-          settings = next((p for p in settings_files if p.exists()), None)
-
-          if settings is None:
-              raise FileNotFoundError(
-                  "Android settings Gradle file not found"
-              )
-
-          text = settings.read_text()
-
-          if 'com.google.gms.google-services' not in text:
-              if settings.suffix == ".kts":
-                  text = text.replace(
-                      'plugins {',
-                      'plugins {\n'
-                      '    id("com.google.gms.google-services") '
-                      'version "4.4.2" apply false',
-                      1
-                  )
-              else:
-                  text = text.replace(
-                      'plugins {',
-                      'plugins {\n'
-                      '    id "com.google.gms.google-services" '
-                      'version "4.4.2" apply false',
-                      1
-                  )
-
-          settings.write_text(text)
+          app.write_text(text)
           PY
 
-            - name: Get packages
+      - name: Get packages
         script: |
           flutter pub get
 
       - name: Build APK
         script: |
           flutter build apk --release
-
-      - name: Sign APK
-        script: |
-          keytool -genkeypair \
-            -v \
-            -keystore hr-ride-release.keystore \
-            -alias hr-ride \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -storepass hrride123 \
-            -keypass hrride123 \
-            -dname "CN=HR RIDE, OU=HR RIDE, O=HR RIDE, L=Kolkata, ST=West Bengal, C=IN"
-
-          APKSIGNER=$(find "$ANDROID_HOME" -name apksigner -type f | head -1)
-
-          "$APKSIGNER" sign \
-            --ks hr-ride-release.keystore \
-            --ks-key-alias hr-ride \
-            --ks-pass pass:hrride123 \
-            --key-pass pass:hrride123 \
-            build/app/outputs/flutter-apk/app-release.apk
-
-      - name: Get APK SHA
-        script: |
-          keytool -printcert -jarfile build/app/outputs/flutter-apk/app-release.apk
 
     artifacts:
       - build/app/outputs/flutter-apk/app-release.apk
