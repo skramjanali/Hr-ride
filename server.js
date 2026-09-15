@@ -4,7 +4,9 @@ const crypto = require("crypto");
 require("dotenv").config();
 
 const app = express();
-const PORT = process.env.PORT || 10000;
+
+const PORT =
+  process.env.PORT || 10000;
 
 // ============================================================
 // CASHFREE CONFIG
@@ -54,10 +56,7 @@ app.use(cors());
 
 // ============================================================
 // CASHFREE WEBHOOK
-// IMPORTANT:
-// This route MUST come before express.json()
-// because Cashfree signature verification
-// needs the original raw request body.
+// MUST BE BEFORE express.json()
 // ============================================================
 
 app.post(
@@ -101,7 +100,9 @@ app.post(
       const rawBody =
         Buffer.isBuffer(req.body)
           ? req.body.toString("utf8")
-          : String(req.body || "");
+          : String(
+              req.body || ""
+            );
 
       const signedPayload =
         `${timestamp}${rawBody}`;
@@ -112,11 +113,15 @@ app.post(
             "sha256",
             CASHFREE_CLIENT_SECRET
           )
-          .update(signedPayload)
+          .update(
+            signedPayload
+          )
           .digest("base64");
 
       const receivedBuffer =
-        Buffer.from(signature);
+        Buffer.from(
+          String(signature)
+        );
 
       const expectedBuffer =
         Buffer.from(
@@ -125,7 +130,7 @@ app.post(
 
       if (
         receivedBuffer.length !==
-        expectedBuffer.length ||
+          expectedBuffer.length ||
         !crypto.timingSafeEqual(
           receivedBuffer,
           expectedBuffer
@@ -146,7 +151,9 @@ app.post(
 
       try {
         payload =
-          JSON.parse(rawBody);
+          JSON.parse(
+            rawBody
+          );
       } catch (error) {
         return res.status(400).json({
           ok: false,
@@ -156,12 +163,23 @@ app.post(
       }
 
       console.log(
-        "Cashfree webhook received:",
+        "================================================"
+      );
+
+      console.log(
+        "CASHFREE WEBHOOK RECEIVED"
+      );
+
+      console.log(
         JSON.stringify(
           payload,
           null,
           2
         )
+      );
+
+      console.log(
+        "================================================"
       );
 
       const orderId =
@@ -184,32 +202,25 @@ app.post(
         null;
 
       console.log(
-        "Webhook order:",
+        "Webhook Order ID:",
         orderId
       );
 
       console.log(
-        "Webhook status:",
+        "Webhook Order Status:",
         orderStatus
       );
 
       console.log(
-        "Webhook payment:",
+        "Webhook Payment ID:",
         paymentId
       );
 
       // --------------------------------------------------------
-      // IMPORTANT
-      // Firestore update can be added here later.
+      // Firestore update can be connected later.
       //
-      // Example:
-      //
-      // PAID
-      // -> paymentStatus = "Paid"
-      //
-      // FAILED
-      // -> paymentStatus = "Failed"
-      //
+      // PAID   -> paymentStatus = Paid
+      // FAILED -> paymentStatus = Failed
       // --------------------------------------------------------
 
       return res.status(200).json({
@@ -306,7 +317,9 @@ function makeOrderId(
       )
       .slice(0, 30);
 
-  return `hr_${safe}_${Date.now()}`;
+  return (
+    `hr_${safe}_${Date.now()}`
+  );
 }
 
 // ============================================================
@@ -329,6 +342,12 @@ app.get(
       cashfreeApiVersion:
         CASHFREE_API_VERSION,
 
+      cashfreeConfigured:
+        Boolean(
+          CASHFREE_CLIENT_ID &&
+          CASHFREE_CLIENT_SECRET
+        ),
+
       orsConfigured:
         Boolean(
           ORS_API_KEY
@@ -341,7 +360,7 @@ app.get(
 );
 
 // ============================================================
-// SIMPLE API STATUS
+// API STATUS
 // ============================================================
 
 app.get(
@@ -349,19 +368,26 @@ app.get(
   (req, res) => {
     res.json({
       success: true,
+
       service:
         "HR RIDE Backend",
+
       cashfree:
         Boolean(
           CASHFREE_CLIENT_ID &&
           CASHFREE_CLIENT_SECRET
         ),
+
       ors:
         Boolean(
           ORS_API_KEY
         ),
+
       environment:
         CASHFREE_ENV,
+
+      apiVersion:
+        CASHFREE_API_VERSION,
     });
   }
 );
@@ -389,21 +415,32 @@ async function geocodePlace(
     `&size=1`;
 
   console.log(
-    "ORS geocoding:",
+    "================================================"
+  );
+
+  console.log(
+    "ORS GEOCODING:"
+  );
+
+  console.log(
     place
   );
 
   const response =
-    await fetch(url, {
-      method: "GET",
-      headers: {
-        Authorization:
-          ORS_API_KEY,
+    await fetch(
+      url,
+      {
+        method: "GET",
 
-        Accept:
-          "application/json",
-      },
-    });
+        headers: {
+          Authorization:
+            ORS_API_KEY,
+
+          Accept:
+            "application/json",
+        },
+      }
+    );
 
   const responseText =
     await response.text();
@@ -421,8 +458,11 @@ async function geocodePlace(
 
   if (!response.ok) {
     console.error(
-      "ORS geocoding HTTP error:",
-      response.status,
+      "ORS GEOCODING ERROR:",
+      response.status
+    );
+
+    console.error(
       responseText
     );
 
@@ -463,19 +503,23 @@ async function geocodePlace(
     );
   }
 
-  const lon =
+  const longitude =
     Number(
       coordinates[0]
     );
 
-  const lat =
+  const latitude =
     Number(
       coordinates[1]
     );
 
   if (
-    !Number.isFinite(lon) ||
-    !Number.isFinite(lat)
+    !Number.isFinite(
+      longitude
+    ) ||
+    !Number.isFinite(
+      latitude
+    )
   ) {
     throw new Error(
       `Invalid coordinates for: ${place}`
@@ -483,16 +527,27 @@ async function geocodePlace(
   }
 
   console.log(
-    "Geocoded:",
-    place,
-    "=>",
-    lon,
-    lat
+    "Location:",
+    place
+  );
+
+  console.log(
+    "Longitude:",
+    longitude
+  );
+
+  console.log(
+    "Latitude:",
+    latitude
+  );
+
+  console.log(
+    "================================================"
   );
 
   return [
-    lon,
-    lat,
+    longitude,
+    latitude,
   ];
 }
 
@@ -508,6 +563,10 @@ app.post(
         pickup,
         drop,
       } = req.body || {};
+
+      // --------------------------------------------------------
+      // VALIDATION
+      // --------------------------------------------------------
 
       if (
         !pickup ||
@@ -583,19 +642,34 @@ app.post(
         );
 
       console.log(
-        "Routing:",
-        pickupCoords,
-        "=>",
+        "================================================"
+      );
+
+      console.log(
+        "ORS ROUTING"
+      );
+
+      console.log(
+        "Pickup:",
+        pickupCoords
+      );
+
+      console.log(
+        "Drop:",
         dropCoords
       );
 
       // --------------------------------------------------------
-      // ORS DIRECTIONS
+      // CURRENT ORS DIRECTIONS ENDPOINT
       // --------------------------------------------------------
 
       const routeUrl =
         `${ORS_BASE_URL}` +
         `/openrouteservice/v2/directions/driving-car`;
+
+      // --------------------------------------------------------
+      // ROUTE REQUEST
+      // --------------------------------------------------------
 
       const routeResponse =
         await fetch(
@@ -644,18 +718,38 @@ app.post(
         routeData = null;
       }
 
+      // --------------------------------------------------------
+      // ORS HTTP ERROR
+      // --------------------------------------------------------
+
       if (
         !routeResponse.ok
       ) {
         console.error(
-          "ORS route HTTP error:",
-          routeResponse.status,
+          "================================================"
+        );
+
+        console.error(
+          "ORS ROUTE HTTP ERROR"
+        );
+
+        console.error(
+          "Status:",
+          routeResponse.status
+        );
+
+        console.error(
           routeText
         );
 
+        console.error(
+          "================================================"
+        );
+
         throw new Error(
-          routeData?.error ||
+          routeData?.error?.message ||
             routeData?.message ||
+            routeData?.error ||
             `Route calculation failed. HTTP ${routeResponse.status}`
         );
       }
@@ -666,20 +760,26 @@ app.post(
         );
       }
 
-      // --------------------------------------------------------
-      // EXTRACT ROUTE
-      // --------------------------------------------------------
+      // ========================================================
+      // ROBUST ORS RESPONSE PARSER
+      // ========================================================
 
       const feature =
-        routeData
-          ?.features?.[0];
+        routeData?.features?.[0] ||
+        null;
 
       const properties =
-        feature?.properties;
+        feature?.properties ||
+        routeData?.properties ||
+        {};
 
       const segment =
-        properties
-          ?.segments?.[0];
+        properties?.segments?.[0] ||
+        null;
+
+      // --------------------------------------------------------
+      // POSSIBLE DISTANCE LOCATIONS
+      // --------------------------------------------------------
 
       const segmentDistance =
         segment?.distance;
@@ -688,16 +788,74 @@ app.post(
         properties
           ?.summary?.distance;
 
-      // Use segment distance first.
-      // If unavailable, use summary distance.
-      const routeDistance =
+      const directDistance =
+        routeData?.distance;
+
+      const featureDistance =
+        feature?.distance;
+
+      // Some ORS JSON responses can return
+      // a "routes" array instead of GeoJSON.
+      const routeObject =
+        routeData?.routes?.[0] ||
+        null;
+
+      const routeSummaryDistance =
+        routeObject
+          ?.summary?.distance;
+
+      const routeSegmentDistance =
+        routeObject
+          ?.segments?.[0]
+          ?.distance;
+
+      // --------------------------------------------------------
+      // SELECT DISTANCE
+      // --------------------------------------------------------
+
+      let routeDistance = null;
+
+      if (
         typeof segmentDistance ===
         "number"
-          ? segmentDistance
-          : typeof summaryDistance ===
-              "number"
-            ? summaryDistance
-            : null;
+      ) {
+        routeDistance =
+          segmentDistance;
+      } else if (
+        typeof summaryDistance ===
+        "number"
+      ) {
+        routeDistance =
+          summaryDistance;
+      } else if (
+        typeof routeSegmentDistance ===
+        "number"
+      ) {
+        routeDistance =
+          routeSegmentDistance;
+      } else if (
+        typeof routeSummaryDistance ===
+        "number"
+      ) {
+        routeDistance =
+          routeSummaryDistance;
+      } else if (
+        typeof directDistance ===
+        "number"
+      ) {
+        routeDistance =
+          directDistance;
+      } else if (
+        typeof featureDistance ===
+        "number"
+      ) {
+        routeDistance =
+          featureDistance;
+      }
+
+      // --------------------------------------------------------
+      // NO DISTANCE FOUND
+      // --------------------------------------------------------
 
       if (
         routeDistance === null ||
@@ -706,7 +864,11 @@ app.post(
         )
       ) {
         console.error(
-          "Unexpected ORS route response:"
+          "================================================"
+        );
+
+        console.error(
+          "ORS DISTANCE NOT FOUND"
         );
 
         console.error(
@@ -717,15 +879,23 @@ app.post(
           )
         );
 
+        console.error(
+          "================================================"
+        );
+
         throw new Error(
           "ORS returned no usable route distance."
         );
       }
 
-      // --------------------------------------------------------
-      // ORS DISTANCE = METERS
-      // Convert to KM
-      // --------------------------------------------------------
+      // ========================================================
+      // DISTANCE UNIT
+      // ========================================================
+      //
+      // We requested units = "m",
+      // so distance is meters.
+      //
+      // ========================================================
 
       const distanceKm =
         Math.round(
@@ -734,21 +904,54 @@ app.post(
             10
         ) / 10;
 
-      // --------------------------------------------------------
+      // ========================================================
       // DURATION
-      // --------------------------------------------------------
+      // ========================================================
 
-      const durationSeconds =
-        typeof segment?.duration ===
+      const segmentDuration =
+        segment?.duration;
+
+      const summaryDuration =
+        properties
+          ?.summary?.duration;
+
+      const routeDuration =
+        routeObject
+          ?.summary?.duration;
+
+      const routeSegmentDuration =
+        routeObject
+          ?.segments?.[0]
+          ?.duration;
+
+      let durationSeconds =
+        null;
+
+      if (
+        typeof segmentDuration ===
         "number"
-          ? segment.duration
-          : typeof properties
-                ?.summary
-                ?.duration ===
-              "number"
-            ? properties
-                .summary.duration
-            : null;
+      ) {
+        durationSeconds =
+          segmentDuration;
+      } else if (
+        typeof summaryDuration ===
+        "number"
+      ) {
+        durationSeconds =
+          summaryDuration;
+      } else if (
+        typeof routeSegmentDuration ===
+        "number"
+      ) {
+        durationSeconds =
+          routeSegmentDuration;
+      } else if (
+        typeof routeDuration ===
+        "number"
+      ) {
+        durationSeconds =
+          routeDuration;
+      }
 
       const durationMinutes =
         typeof durationSeconds ===
@@ -759,19 +962,42 @@ app.post(
             )
           : null;
 
+      // ========================================================
+      // SUCCESS LOG
+      // ========================================================
+
       console.log(
-        "Route success:",
-        {
-          pickup:
-            pickupText,
+        "================================================"
+      );
 
-          drop:
-            dropText,
+      console.log(
+        "ORS ROUTE SUCCESS"
+      );
 
-          distanceKm,
+      console.log(
+        "Pickup:",
+        pickupText
+      );
 
-          durationMinutes,
-        }
+      console.log(
+        "Drop:",
+        dropText
+      );
+
+      console.log(
+        "Distance:",
+        distanceKm,
+        "KM"
+      );
+
+      console.log(
+        "Duration:",
+        durationMinutes,
+        "minutes"
+      );
+
+      console.log(
+        "================================================"
       );
 
       return res.json({
@@ -783,14 +1009,29 @@ app.post(
         drop:
           dropText,
 
-        distanceKm,
+        distanceKm:
 
-        durationMinutes,
+          distanceKm,
+
+        durationMinutes:
+
+          durationMinutes,
       });
     } catch (error) {
       console.error(
-        "Route distance error:",
+        "================================================"
+      );
+
+      console.error(
+        "ROUTE DISTANCE ERROR"
+      );
+
+      console.error(
         error
+      );
+
+      console.error(
+        "================================================"
       );
 
       return res.status(500).json({
@@ -826,7 +1067,7 @@ app.post(
         req.body || {};
 
       // --------------------------------------------------------
-      // VALIDATE AMOUNT
+      // AMOUNT
       // --------------------------------------------------------
 
       const orderAmount =
@@ -846,7 +1087,7 @@ app.post(
       }
 
       // --------------------------------------------------------
-      // VALIDATE PHONE
+      // PHONE
       // --------------------------------------------------------
 
       const phone =
@@ -885,6 +1126,21 @@ app.post(
           .slice(0, 50);
 
       // --------------------------------------------------------
+      // EMAIL
+      // --------------------------------------------------------
+
+      const safeEmail =
+        String(
+          customerEmail || ""
+        ).trim();
+
+      // Cashfree customer email can be supplied
+      // when available.
+      const finalCustomerEmail =
+        safeEmail ||
+        `${safeCustomerId}@hrride.app`;
+
+      // --------------------------------------------------------
       // ORDER ID
       // --------------------------------------------------------
 
@@ -898,19 +1154,23 @@ app.post(
       // --------------------------------------------------------
 
       const returnUrl =
-        `${PUBLIC_BASE_URL}/payment-return?order_id=${encodeURIComponent(
+        `${PUBLIC_BASE_URL}` +
+        `/payment-return` +
+        `?order_id=` +
+        encodeURIComponent(
           orderId
-        )}`;
+        );
 
       // --------------------------------------------------------
       // WEBHOOK URL
       // --------------------------------------------------------
 
       const webhookUrl =
-        `${PUBLIC_BASE_URL}/api/webhooks/cashfree`;
+        `${PUBLIC_BASE_URL}` +
+        `/api/webhooks/cashfree`;
 
       // --------------------------------------------------------
-      // CASHFREE REQUEST
+      // CASHFREE PAYLOAD
       // --------------------------------------------------------
 
       const payload = {
@@ -934,8 +1194,7 @@ app.post(
             "HR RIDE Customer",
 
           customer_email:
-            customerEmail ||
-            "",
+            finalCustomerEmail,
 
           customer_phone:
             phone,
@@ -955,15 +1214,35 @@ app.post(
       };
 
       console.log(
-        "Creating Cashfree order:",
-        {
-          orderId,
-          amount:
-            payload.order_amount,
-          customerId:
-            safeCustomerId,
-        }
+        "================================================"
       );
+
+      console.log(
+        "CREATING CASHFREE ORDER"
+      );
+
+      console.log(
+        "Order ID:",
+        orderId
+      );
+
+      console.log(
+        "Amount:",
+        payload.order_amount
+      );
+
+      console.log(
+        "Customer:",
+        safeCustomerId
+      );
+
+      console.log(
+        "================================================"
+      );
+
+      // --------------------------------------------------------
+      // CASHFREE API
+      // --------------------------------------------------------
 
       const response =
         await fetch(
@@ -995,10 +1274,18 @@ app.post(
         data = null;
       }
 
-      if (!response.ok) {
+      if (
+        !response.ok
+      ) {
         console.error(
-          "Cashfree create order error:",
-          response.status,
+          "Cashfree create order error:"
+        );
+
+        console.error(
+          response.status
+        );
+
+        console.error(
           responseText
         );
 
@@ -1017,16 +1304,19 @@ app.post(
       }
 
       console.log(
-        "Cashfree order created:",
-        {
-          orderId:
-            data?.order_id,
+        "Cashfree order created:"
+      );
 
-          paymentSessionId:
-            Boolean(
-              data?.payment_session_id
-            ),
-        }
+      console.log(
+        "Order ID:",
+        data?.order_id
+      );
+
+      console.log(
+        "Payment Session:",
+        Boolean(
+          data?.payment_session_id
+        )
       );
 
       return res.json({
@@ -1056,7 +1346,8 @@ app.post(
           data?.order_status ||
           "ACTIVE",
 
-        returnUrl,
+        returnUrl:
+          returnUrl,
       });
     } catch (error) {
       console.error(
@@ -1076,7 +1367,7 @@ app.post(
 );
 
 // ============================================================
-// CASHFREE GET ORDER STATUS
+// CASHFREE ORDER STATUS
 // ============================================================
 
 app.get(
@@ -1126,9 +1417,11 @@ app.get(
         data = null;
       }
 
-      if (!response.ok) {
+      if (
+        !response.ok
+      ) {
         console.error(
-          "Cashfree order status error:",
+          "Cashfree status error:",
           response.status,
           responseText
         );
@@ -1173,9 +1466,6 @@ app.get(
         createdAt:
           data?.created_at ||
           null,
-
-        raw:
-          data,
       });
     } catch (error) {
       console.error(
@@ -1195,7 +1485,7 @@ app.get(
 );
 
 // ============================================================
-// CASHFREE GET PAYMENTS
+// CASHFREE ORDER PAYMENTS
 // ============================================================
 
 app.get(
@@ -1245,7 +1535,9 @@ app.get(
         data = null;
       }
 
-      if (!response.ok) {
+      if (
+        !response.ok
+      ) {
         return res.status(
           response.status
         ).json({
@@ -1262,9 +1554,12 @@ app.get(
       return res.json({
         success: true,
 
-        orderId,
+        orderId:
+
+          orderId,
 
         payments:
+
           Array.isArray(data)
             ? data
             : [],
@@ -1287,7 +1582,7 @@ app.get(
 );
 
 // ============================================================
-// PAYMENT RETURN PAGE
+// PAYMENT RETURN
 // ============================================================
 
 app.get(
@@ -1303,29 +1598,30 @@ app.get(
       return res
         .status(400)
         .send(`
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <meta charset="UTF-8">
-            <meta name="viewport"
-              content="width=device-width,initial-scale=1">
-            <title>HR RIDE Payment</title>
-          </head>
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta
+  name="viewport"
+  content="width=device-width,initial-scale=1">
+<title>HR RIDE Payment</title>
+</head>
 
-          <body style="
-            font-family:Arial;
-            text-align:center;
-            padding:40px;
-          ">
+<body style="
+font-family:Arial;
+text-align:center;
+padding:40px;
+">
 
-            <h2>HR RIDE</h2>
+<h2>HR RIDE</h2>
 
-            <p>
-              Payment order ID missing.
-            </p>
+<p>
+Payment order ID is missing.
+</p>
 
-          </body>
-          </html>
+</body>
+</html>
         `);
     }
 
@@ -1345,8 +1641,29 @@ app.get(
           }
         );
 
-      const data =
-        await response.json();
+      const responseText =
+        await response.text();
+
+      let data = null;
+
+      try {
+        data =
+          JSON.parse(
+            responseText
+          );
+      } catch (_) {
+        data = null;
+      }
+
+      if (
+        !response.ok
+      ) {
+        throw new Error(
+          data?.message ||
+            data?.error ||
+            "Unable to verify payment."
+        );
+      }
 
       const status =
         data?.order_status ||
@@ -1365,141 +1682,148 @@ app.get(
           ? "Your HR RIDE booking advance has been received."
           : `Payment status: ${status}`;
 
-      res
-        .status(200)
-        .send(`
-          <!DOCTYPE html>
+      return res.status(200).send(`
+<!DOCTYPE html>
 
-          <html>
+<html>
 
-          <head>
+<head>
 
-            <meta charset="UTF-8">
+<meta charset="UTF-8">
 
-            <meta
-              name="viewport"
-              content="width=device-width,initial-scale=1"
-            >
+<meta
+  name="viewport"
+  content="width=device-width,initial-scale=1">
 
-            <title>
-              HR RIDE Payment
-            </title>
+<title>
+HR RIDE Payment
+</title>
 
-          </head>
+</head>
 
-          <body style="
-            margin:0;
-            background:#f5f7fb;
-            font-family:Arial,sans-serif;
-          ">
+<body style="
+margin:0;
+background:#f4f6f9;
+font-family:Arial,sans-serif;
+">
 
-            <div style="
-              max-width:480px;
-              margin:80px auto;
-              background:white;
-              border-radius:18px;
-              padding:30px;
-              text-align:center;
-              box-shadow:
-                0 8px 30px
-                rgba(0,0,0,0.10);
-            ">
+<div style="
+max-width:480px;
+margin:70px auto;
+background:white;
+border-radius:20px;
+padding:30px;
+text-align:center;
+box-shadow:
+0 8px 30px
+rgba(0,0,0,0.10);
+">
 
-              <h1 style="
-                margin-bottom:10px;
-              ">
-                HR RIDE
-              </h1>
+<h1>
+HR RIDE
+</h1>
 
-              <h2>
-                ${title}
-              </h2>
+<h2>
+${title}
+</h2>
 
-              <p>
-                ${message}
-              </p>
+<p>
+${message}
+</p>
 
-              <p style="
-                color:#777;
-                font-size:13px;
-              ">
-                Order ID:
-                ${orderId}
-              </p>
+<p style="
+font-size:13px;
+color:#777;
+word-break:break-all;
+">
 
-              <p style="
-                color:#777;
-                font-size:13px;
-              ">
-                You can close this page
-                and return to the HR RIDE app.
-              </p>
+Order ID:
+${orderId}
 
-            </div>
+</p>
 
-          </body>
+<p style="
+font-size:13px;
+color:#777;
+">
 
-          </html>
-        `);
+You can close this page
+and return to the HR RIDE app.
+
+</p>
+
+</div>
+
+</body>
+
+</html>
+      `);
     } catch (error) {
       console.error(
         "Payment return error:",
         error
       );
 
-      res
+      return res
         .status(500)
         .send(`
-          <!DOCTYPE html>
+<!DOCTYPE html>
 
-          <html>
+<html>
 
-          <head>
-            <meta charset="UTF-8">
-            <meta
-              name="viewport"
-              content="width=device-width,initial-scale=1"
-            >
-            <title>HR RIDE Payment</title>
-          </head>
+<head>
 
-          <body style="
-            font-family:Arial;
-            text-align:center;
-            padding:40px;
-          ">
+<meta charset="UTF-8">
 
-            <h2>
-              HR RIDE
-            </h2>
+<meta
+  name="viewport"
+  content="width=device-width,initial-scale=1">
 
-            <p>
-              Unable to verify payment status.
-            </p>
+<title>
+HR RIDE Payment
+</title>
 
-            <p>
-              Order ID:
-              ${orderId}
-            </p>
+</head>
 
-          </body>
+<body style="
+font-family:Arial;
+text-align:center;
+padding:40px;
+">
 
-          </html>
+<h2>
+HR RIDE
+</h2>
+
+<p>
+Unable to verify payment status.
+</p>
+
+<p>
+Order ID:
+${orderId}
+</p>
+
+</body>
+
+</html>
         `);
     }
   }
 );
 
 // ============================================================
-// 404 HANDLER
+// 404
 // ============================================================
 
 app.use(
   (req, res) => {
     res.status(404).json({
       success: false,
+
       error:
         "API endpoint not found.",
+
       path:
         req.originalUrl,
     });
@@ -1518,15 +1842,17 @@ app.use(
     next
   ) => {
     console.error(
-      "Global server error:",
+      "GLOBAL SERVER ERROR:",
       error
     );
 
-    if (res.headersSent) {
+    if (
+      res.headersSent
+    ) {
       return next(error);
     }
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
 
       error:
@@ -1548,23 +1874,23 @@ app.listen(
     );
 
     console.log(
-      "HR RIDE Backend Started"
+      "HR RIDE BACKEND STARTED"
     );
 
     console.log(
-      `Port: ${PORT}`
+      `PORT: ${PORT}`
     );
 
     console.log(
-      `Environment: ${CASHFREE_ENV}`
+      `ENVIRONMENT: ${CASHFREE_ENV}`
     );
 
     console.log(
-      `Cashfree API: ${CASHFREE_API_VERSION}`
+      `CASHFREE API VERSION: ${CASHFREE_API_VERSION}`
     );
 
     console.log(
-      `Cashfree configured: ${
+      `CASHFREE CONFIGURED: ${
         Boolean(
           CASHFREE_CLIENT_ID &&
           CASHFREE_CLIENT_SECRET
@@ -1573,7 +1899,7 @@ app.listen(
     );
 
     console.log(
-      `ORS configured: ${
+      `ORS CONFIGURED: ${
         Boolean(
           ORS_API_KEY
         )
@@ -1581,7 +1907,7 @@ app.listen(
     );
 
     console.log(
-      `Public URL: ${PUBLIC_BASE_URL}`
+      `PUBLIC BASE URL: ${PUBLIC_BASE_URL}`
     );
 
     console.log(
