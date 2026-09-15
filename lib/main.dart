@@ -1,12 +1,16 @@
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:flutter_cashfree_pg_sdk/api/cferrorresponse/cferrorresponse.dart';
-import 'package:flutter_cashfree_pg_sdk/api/cfpayment/cfwebcheckoutpayment.dart';
-import 'package:flutter_cashfree_pg_sdk/api/cfpaymentgateway/cfpaymentgatewayservice.dart';
-import 'package:flutter_cashfree_pg_sdk/api/cfsession/cfsession.dart';
+import 'package:http/http.dart' as http;
+
+// ============================================================
+// MAIN
+// ============================================================
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -55,7 +59,7 @@ class HRRideApp extends StatelessWidget {
 }
 
 // ============================================================
-// LOGIN
+// LOGIN PAGE
 // ============================================================
 
 class LoginPage extends StatefulWidget {
@@ -82,11 +86,6 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     final phone = input.startsWith('+') ? input : '+91$input';
-
-    if (!phone.startsWith('+')) {
-      showError('Enter valid phone number');
-      return;
-    }
 
     if (loading) return;
 
@@ -423,7 +422,7 @@ class _LoginPageState extends State<LoginPage> {
 }
 
 // ============================================================
-// HOME
+// HOME PAGE
 // ============================================================
 
 class HomePage extends StatelessWidget {
@@ -635,19 +634,29 @@ class _BookingPageState extends State<BookingPage> {
   final pickupController = TextEditingController();
   final dropController = TextEditingController();
   final distanceController = TextEditingController();
-  final holdingController = TextEditingController(text: '0');
+  final holdingController =
+      TextEditingController(text: '0');
+
+  static const String backendUrl =
+      'https://hr-ride.onrender.com';
 
   bool loading = false;
+  bool calculatingDistance = false;
+
   String vehicleType = 'AC';
   DateTime? travelDate;
 
+  double calculatedDistance = 0;
+  int? durationMinutes;
+
   static const double acRate = 20;
   static const double nonAcRate = 17;
-  static const double minimumKm = 200;
   static const double holdingRate = 100;
 
   double get rate {
-    return vehicleType == 'AC' ? acRate : nonAcRate;
+    return vehicleType == 'AC'
+        ? acRate
+        : nonAcRate;
   }
 
   double get enteredKm {
@@ -664,14 +673,14 @@ class _BookingPageState extends State<BookingPage> {
         0;
   }
 
-  double get chargeableKm {
-    if (enteredKm <= 0) {
-      return 0;
-    }
+  // ==========================================================
+  // IMPORTANT:
+  // Actual KM = Chargeable KM
+  // No 200 KM minimum.
+  // ==========================================================
 
-    return enteredKm < minimumKm
-        ? minimumKm
-        : enteredKm;
+  double get chargeableKm {
+    return enteredKm;
   }
 
   double get distanceFare {
@@ -691,8 +700,140 @@ class _BookingPageState extends State<BookingPage> {
   }
 
   double get balanceAmount {
-    return totalFare * 0.70;
+    return totalFare - advanceAmount;
   }
+
+  // ==========================================================
+  // AUTO DISTANCE
+  // ==========================================================
+
+  Future<void> calculateDistance() async {
+    final pickup =
+        pickupController.text.trim();
+
+    final drop =
+        dropController.text.trim();
+
+    if (pickup.isEmpty) {
+      showError('Enter pickup location');
+      return;
+    }
+
+    if (drop.isEmpty) {
+      showError('Enter drop location');
+      return;
+    }
+
+    if (pickup.toLowerCase() ==
+        drop.toLowerCase()) {
+      showError(
+        'Pickup and drop cannot be the same.',
+      );
+      return;
+    }
+
+    if (calculatingDistance) return;
+
+    setState(() {
+      calculatingDistance = true;
+      calculatedDistance = 0;
+      durationMinutes = null;
+    });
+
+    try {
+      final response = await http.post(
+        Uri.parse(
+          '$backendUrl/api/route-distance',
+        ),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'pickup': pickup,
+          'drop': drop,
+        }),
+      );
+
+      if (response.statusCode != 200) {
+        String message =
+            'Distance calculation failed.';
+
+        try {
+          final data =
+              jsonDecode(response.body);
+
+          if (data is Map &&
+              data['error'] != null) {
+            message =
+                data['error'].toString();
+          }
+        } catch (_) {}
+
+        throw Exception(message);
+      }
+
+      final data =
+          jsonDecode(response.body);
+
+      if (data['success'] != true) {
+        throw Exception(
+          data['error'] ??
+              'Distance calculation failed.',
+        );
+      }
+
+      final distance =
+          (data['distanceKm'] as num?)
+              ?.toDouble();
+
+      final duration =
+          (data['durationMinutes'] as num?)
+              ?.toInt();
+
+      if (distance == null ||
+          distance <= 0) {
+        throw Exception(
+          'Valid distance was not returned.',
+        );
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        calculatedDistance = distance;
+        durationMinutes = duration;
+
+        distanceController.text =
+            distance.toStringAsFixed(1);
+      });
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        SnackBar(
+          content: Text(
+            'Distance calculated: '
+            '${distance.toStringAsFixed(1)} KM',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      showError(
+        'Distance Error:\n$e',
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          calculatingDistance = false;
+        });
+      }
+    }
+  }
+
+  // ==========================================================
+  // DATE
+  // ==========================================================
 
   Future<void> selectTravelDate() async {
     final now = DateTime.now();
@@ -714,20 +855,29 @@ class _BookingPageState extends State<BookingPage> {
     }
   }
 
-  Future<void> confirmBooking() async {
-    final pickup = pickupController.text.trim();
-    final drop = dropController.text.trim();
+  // ==========================================================
+  // CONFIRM BOOKING
+  // ==========================================================
 
-    if (pickup.isEmpty || drop.isEmpty) {
+  Future<void> confirmBooking() async {
+    final pickup =
+        pickupController.text.trim();
+
+    final drop =
+        dropController.text.trim();
+
+    if (pickup.isEmpty ||
+        drop.isEmpty) {
       showError(
         'Please enter pickup and drop location',
       );
       return;
     }
 
+    // Distance must come from backend.
     if (enteredKm <= 0) {
       showError(
-        'Please enter distance in KM',
+        'Please calculate the distance first.',
       );
       return;
     }
@@ -761,43 +911,82 @@ class _BookingPageState extends State<BookingPage> {
     setState(() => loading = true);
 
     try {
-      await FirebaseFirestore.instance
-          .collection('bookings')
-          .add({
+      final booking =
+          await FirebaseFirestore.instance
+              .collection('bookings')
+              .add({
         'userId': user.uid,
-        'userPhone': user.phoneNumber ?? '',
-        'userName': user.displayName ?? '',
-        'userEmail': user.email ?? '',
+        'userPhone':
+            user.phoneNumber ?? '',
+        'userName':
+            user.displayName ?? '',
+        'userEmail':
+            user.email ?? '',
+
         'pickup': pickup,
         'drop': drop,
 
         'travelDate':
-            Timestamp.fromDate(travelDate!),
+            Timestamp.fromDate(
+          travelDate!,
+        ),
 
-        'vehicle': 'Maruti Ertiga',
-        'vehicleType': vehicleType,
-        'mileage': '22 km/l',
-        'region': 'West Bengal',
+        'vehicle':
+            'Maruti Ertiga',
 
-        'distanceKm': enteredKm,
-        'chargeableKm': chargeableKm,
-        'ratePerKm': rate,
+        'vehicleType':
+            vehicleType,
 
-        'holdingHours': holdingHours,
-        'holdingRate': holdingRate,
+        'mileage':
+            '22 km/l',
 
-        'distanceFare': distanceFare,
-        'holdingFare': holdingFare,
+        'region':
+            'West Bengal',
 
-        'totalAmount': totalFare,
-        'advanceAmount': advanceAmount,
-        'balanceAmount': balanceAmount,
+        // Actual distance.
+        'distanceKm':
+            enteredKm,
 
-        'paymentStatus': 'Pending',
-        'paymentId': '',
-        'orderId': '',
+        // Same as actual distance.
+        'chargeableKm':
+            chargeableKm,
 
-        'status': 'Pending',
+        'ratePerKm':
+            rate,
+
+        'holdingHours':
+            holdingHours,
+
+        'holdingRate':
+            holdingRate,
+
+        'distanceFare':
+            distanceFare,
+
+        'holdingFare':
+            holdingFare,
+
+        'totalAmount':
+            totalFare,
+
+        'advanceAmount':
+            advanceAmount,
+
+        'balanceAmount':
+            balanceAmount,
+
+        'paymentStatus':
+            'Pending',
+
+        'paymentId':
+            '',
+
+        'orderId':
+            '',
+
+        'status':
+            'Pending',
+
         'createdAt':
             FieldValue.serverTimestamp(),
       });
@@ -806,44 +995,10 @@ class _BookingPageState extends State<BookingPage> {
 
       setState(() => loading = false);
 
-      showDialog(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text(
-            'Booking Submitted',
-          ),
-          content: SingleChildScrollView(
-            child: Text(
-              'Pickup: $pickup\n\n'
-              'Drop: $drop\n\n'
-              'Vehicle: Maruti Ertiga\n'
-              'Type: $vehicleType\n'
-              'Travel Date: ${formatDate(travelDate)}\n\n'
-              'Distance: '
-              '${enteredKm.toStringAsFixed(0)} km\n'
-              'Chargeable: '
-              '${chargeableKm.toStringAsFixed(0)} km\n'
-              'Holding: '
-              '${holdingHours.toStringAsFixed(1)} hour\n\n'
-              'Total: '
-              '₹${totalFare.toStringAsFixed(0)}\n'
-              'Advance (30%): '
-              '₹${advanceAmount.toStringAsFixed(0)}\n'
-              'Balance (70%): '
-              '₹${balanceAmount.toStringAsFixed(0)}\n\n'
-              'Status: Pending',
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.pop(context);
-              },
-              child: const Text('OK'),
-            ),
-          ],
-        ),
+      showBillDialog(
+        booking.id,
+        pickup,
+        drop,
       );
     } catch (e) {
       if (!mounted) return;
@@ -856,8 +1011,206 @@ class _BookingPageState extends State<BookingPage> {
     }
   }
 
+  // ==========================================================
+  // BILL DIALOG
+  // ==========================================================
+
+  void showBillDialog(
+    String bookingId,
+    String pickup,
+    String drop,
+  ) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) {
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(
+                Icons.receipt_long,
+                color: Color(0xFF1687FF),
+              ),
+              SizedBox(width: 10),
+              Text('HR RIDE BILL'),
+            ],
+          ),
+          content:
+              SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                billLine(
+                  'Pickup',
+                  pickup,
+                ),
+
+                billLine(
+                  'Drop',
+                  drop,
+                ),
+
+                billLine(
+                  'Vehicle',
+                  'Maruti Ertiga',
+                ),
+
+                billLine(
+                  'Type',
+                  vehicleType,
+                ),
+
+                billLine(
+                  'Travel Date',
+                  formatDate(travelDate),
+                ),
+
+                const Divider(
+                  height: 25,
+                ),
+
+                billLine(
+                  'Actual Distance',
+                  '${enteredKm.toStringAsFixed(1)} KM',
+                ),
+
+                billLine(
+                  'Rate',
+                  '₹${rate.toStringAsFixed(0)}/KM',
+                ),
+
+                billLine(
+                  'Distance Fare',
+                  '₹${distanceFare.toStringAsFixed(2)}',
+                ),
+
+                billLine(
+                  'Holding',
+                  '${holdingHours.toStringAsFixed(1)} hour',
+                ),
+
+                billLine(
+                  'Holding Fare',
+                  '₹${holdingFare.toStringAsFixed(2)}',
+                ),
+
+                const Divider(
+                  height: 25,
+                ),
+
+                billLine(
+                  'TOTAL',
+                  '₹${totalFare.toStringAsFixed(2)}',
+                  bold: true,
+                ),
+
+                billLine(
+                  'Advance 30%',
+                  '₹${advanceAmount.toStringAsFixed(2)}',
+                ),
+
+                billLine(
+                  'Balance 70%',
+                  '₹${balanceAmount.toStringAsFixed(2)}',
+                ),
+
+                if (durationMinutes !=
+                    null)
+                  billLine(
+                    'Estimated Time',
+                    '${durationMinutes!} minutes',
+                  ),
+
+                const SizedBox(
+                  height: 12,
+                ),
+
+                Text(
+                  'Booking ID:\n$bookingId',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.white
+                        .withOpacity(.55),
+                  ),
+                ),
+
+                const SizedBox(
+                  height: 10,
+                ),
+
+                const Text(
+                  'Payment: Pending',
+                  style: TextStyle(
+                    color:
+                        Colors.orangeAccent,
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.pop(context);
+              },
+              child: const Text(
+                'DONE',
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget billLine(
+    String title,
+    String value, {
+    bool bold = false,
+  }) {
+    return Padding(
+      padding:
+          const EdgeInsets.symmetric(
+        vertical: 5,
+      ),
+      child: Row(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(
+                fontWeight: bold
+                    ? FontWeight.bold
+                    : FontWeight.normal,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            value,
+            textAlign: TextAlign.end,
+            style: TextStyle(
+              fontWeight: bold
+                  ? FontWeight.bold
+                  : FontWeight.w600,
+              fontSize:
+                  bold ? 17 : 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void showError(String text) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
       SnackBar(
         content: Text(text),
       ),
@@ -911,69 +1264,230 @@ class _BookingPageState extends State<BookingPage> {
 
             const SizedBox(height: 25),
 
+            // ==================================================
+            // PICKUP
+            // ==================================================
+
             TextField(
-              controller: pickupController,
+              controller:
+                  pickupController,
+              textCapitalization:
+                  TextCapitalization.words,
               decoration: InputDecoration(
-                labelText: 'Pickup Location',
-                hintText: 'Enter pickup',
+                labelText:
+                    'Pickup Location',
+                hintText:
+                    'Enter pickup',
                 prefixIcon:
-                    const Icon(Icons.my_location),
+                    const Icon(
+                  Icons.my_location,
+                ),
                 filled: true,
                 fillColor:
                     const Color(0xFF10243B),
-                border: OutlineInputBorder(
+                border:
+                    OutlineInputBorder(
                   borderRadius:
-                      BorderRadius.circular(18),
-                  borderSide: BorderSide.none,
+                      BorderRadius.circular(
+                    18,
+                  ),
+                  borderSide:
+                      BorderSide.none,
                 ),
               ),
             ),
 
-            const SizedBox(height: 18),
+            const SizedBox(
+              height: 18,
+            ),
+
+            // ==================================================
+            // DROP
+            // ==================================================
 
             TextField(
-              controller: dropController,
+              controller:
+                  dropController,
+              textCapitalization:
+                  TextCapitalization.words,
               decoration: InputDecoration(
-                labelText: 'Drop Location',
-                hintText: 'Enter destination',
+                labelText:
+                    'Drop Location',
+                hintText:
+                    'Enter destination',
                 prefixIcon:
-                    const Icon(Icons.location_on),
+                    const Icon(
+                  Icons.location_on,
+                ),
                 filled: true,
                 fillColor:
                     const Color(0xFF10243B),
-                border: OutlineInputBorder(
+                border:
+                    OutlineInputBorder(
                   borderRadius:
-                      BorderRadius.circular(18),
-                  borderSide: BorderSide.none,
+                      BorderRadius.circular(
+                    18,
+                  ),
+                  borderSide:
+                      BorderSide.none,
                 ),
               ),
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(
+              height: 15,
+            ),
+
+            // ==================================================
+            // CALCULATE DISTANCE BUTTON
+            // ==================================================
+
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton.icon(
+                onPressed:
+                    calculatingDistance
+                        ? null
+                        : calculateDistance,
+                icon: calculatingDistance
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child:
+                            CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color:
+                              Colors.white,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.route,
+                      ),
+                label: Text(
+                  calculatingDistance
+                      ? 'CALCULATING DISTANCE...'
+                      : 'CALCULATE DISTANCE',
+                ),
+              ),
+            ),
+
+            const SizedBox(
+              height: 20,
+            ),
+
+            // ==================================================
+            // DISTANCE RESULT
+            // ==================================================
+
+            Container(
+              width: double.infinity,
+              padding:
+                  const EdgeInsets.all(18),
+              decoration:
+                  BoxDecoration(
+                color:
+                    const Color(0xFF10243B),
+                borderRadius:
+                    BorderRadius.circular(
+                  18,
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons
+                        .directions_car,
+                    color:
+                        Color(0xFF1687FF),
+                    size: 35,
+                  ),
+                  const SizedBox(
+                    width: 14,
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment:
+                          CrossAxisAlignment
+                              .start,
+                      children: [
+                        const Text(
+                          'Actual Distance',
+                          style: TextStyle(
+                            color:
+                                Colors.white70,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(
+                          height: 4,
+                        ),
+                        Text(
+                          enteredKm > 0
+                              ? '${enteredKm.toStringAsFixed(1)} KM'
+                              : 'Calculate distance',
+                          style:
+                              const TextStyle(
+                            fontSize: 22,
+                            fontWeight:
+                                FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (durationMinutes !=
+                      null)
+                    Text(
+                      '$durationMinutes min',
+                      style:
+                          const TextStyle(
+                        color:
+                            Colors.white70,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+
+            const SizedBox(
+              height: 20,
+            ),
+
+            // ==================================================
+            // VEHICLE TYPE
+            // ==================================================
 
             const Align(
-              alignment: Alignment.centerLeft,
+              alignment:
+                  Alignment.centerLeft,
               child: Text(
                 'Select Vehicle Type',
                 style: TextStyle(
                   fontSize: 15,
-                  fontWeight: FontWeight.bold,
+                  fontWeight:
+                      FontWeight.bold,
                 ),
               ),
             ),
 
-            const SizedBox(height: 10),
+            const SizedBox(
+              height: 10,
+            ),
 
             Row(
               children: [
                 Expanded(
                   child: ChoiceChip(
-                    label: const SizedBox(
-                      width: double.infinity,
+                    label:
+                        const SizedBox(
+                      width:
+                          double.infinity,
                       child: Center(
                         child: Text(
                           'AC • ₹20/km',
-                          style: TextStyle(
+                          style:
+                              TextStyle(
                             fontWeight:
                                 FontWeight.bold,
                           ),
@@ -981,25 +1495,32 @@ class _BookingPageState extends State<BookingPage> {
                       ),
                     ),
                     selected:
-                        vehicleType == 'AC',
+                        vehicleType ==
+                            'AC',
                     onSelected: (_) {
                       setState(() {
-                        vehicleType = 'AC';
+                        vehicleType =
+                            'AC';
                       });
                     },
                   ),
                 ),
 
-                const SizedBox(width: 12),
+                const SizedBox(
+                  width: 12,
+                ),
 
                 Expanded(
                   child: ChoiceChip(
-                    label: const SizedBox(
-                      width: double.infinity,
+                    label:
+                        const SizedBox(
+                      width:
+                          double.infinity,
                       child: Center(
                         child: Text(
                           'Non-AC • ₹17/km',
-                          style: TextStyle(
+                          style:
+                              TextStyle(
                             fontWeight:
                                 FontWeight.bold,
                           ),
@@ -1007,10 +1528,12 @@ class _BookingPageState extends State<BookingPage> {
                       ),
                     ),
                     selected:
-                        vehicleType == 'Non-AC',
+                        vehicleType ==
+                            'Non-AC',
                     onSelected: (_) {
                       setState(() {
-                        vehicleType = 'Non-AC';
+                        vehicleType =
+                            'Non-AC';
                       });
                     },
                   ),
@@ -1018,130 +1541,192 @@ class _BookingPageState extends State<BookingPage> {
               ],
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(
+              height: 20,
+            ),
+
+            // ==================================================
+            // DISTANCE - READ ONLY
+            // ==================================================
 
             TextField(
-              controller: distanceController,
-              keyboardType:
-                  const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              onChanged: (_) {
-                setState(() {});
-              },
-              decoration: InputDecoration(
-                labelText: 'Distance (KM)',
-                hintText: 'Example: 250',
-                prefixIcon:
-                    const Icon(Icons.route),
+              controller:
+                  distanceController,
+              readOnly: true,
+              decoration:
+                  InputDecoration(
+                labelText:
+                    'Actual Distance (KM)',
                 suffixText: 'KM',
+                prefixIcon:
+                    const Icon(
+                  Icons.route,
+                ),
                 filled: true,
                 fillColor:
                     const Color(0xFF10243B),
-                border: OutlineInputBorder(
+                border:
+                    OutlineInputBorder(
                   borderRadius:
-                      BorderRadius.circular(18),
-                  borderSide: BorderSide.none,
+                      BorderRadius.circular(
+                    18,
+                  ),
+                  borderSide:
+                      BorderSide.none,
                 ),
               ),
             ),
 
-            const SizedBox(height: 8),
+            const SizedBox(
+              height: 8,
+            ),
 
             const Align(
-              alignment: Alignment.centerLeft,
+              alignment:
+                  Alignment.centerLeft,
               child: Text(
-                'Minimum billing: 200 KM',
+                'Billing is based on actual distance. No minimum KM.',
                 style: TextStyle(
-                  color: Colors.orangeAccent,
+                  color:
+                      Colors.greenAccent,
                   fontSize: 13,
                 ),
               ),
             ),
 
-            const SizedBox(height: 18),
+            const SizedBox(
+              height: 18,
+            ),
+
+            // ==================================================
+            // HOLDING
+            // ==================================================
 
             TextField(
-              controller: holdingController,
+              controller:
+                  holdingController,
               keyboardType:
-                  const TextInputType.numberWithOptions(
+                  const TextInputType
+                      .numberWithOptions(
                 decimal: true,
               ),
               onChanged: (_) {
                 setState(() {});
               },
-              decoration: InputDecoration(
-                labelText: 'Holding Hours',
-                hintText: 'Example: 2',
+              decoration:
+                  InputDecoration(
+                labelText:
+                    'Holding Hours',
+                hintText:
+                    'Example: 2',
                 prefixIcon:
-                    const Icon(Icons.access_time),
-                suffixText: '₹100/hour',
+                    const Icon(
+                  Icons.access_time,
+                ),
+                suffixText:
+                    '₹100/hour',
                 filled: true,
                 fillColor:
                     const Color(0xFF10243B),
-                border: OutlineInputBorder(
+                border:
+                    OutlineInputBorder(
                   borderRadius:
-                      BorderRadius.circular(18),
-                  borderSide: BorderSide.none,
+                      BorderRadius.circular(
+                    18,
+                  ),
+                  borderSide:
+                      BorderSide.none,
                 ),
               ),
             ),
 
-            const SizedBox(height: 18),
+            const SizedBox(
+              height: 18,
+            ),
+
+            // ==================================================
+            // DATE
+            // ==================================================
 
             InkWell(
-              onTap: selectTravelDate,
+              onTap:
+                  selectTravelDate,
               borderRadius:
-                  BorderRadius.circular(18),
-              child: Container(
-                width: double.infinity,
+                  BorderRadius.circular(
+                18,
+              ),
+              child:
+                  Container(
+                width:
+                    double.infinity,
                 padding:
-                    const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color:
-                      const Color(0xFF10243B),
-                  borderRadius:
-                      BorderRadius.circular(18),
+                    const EdgeInsets.all(
+                  18,
                 ),
-                child: Row(
+                decoration:
+                    BoxDecoration(
+                  color:
+                      const Color(
+                    0xFF10243B,
+                  ),
+                  borderRadius:
+                      BorderRadius.circular(
+                    18,
+                  ),
+                ),
+                child:
+                    Row(
                   children: [
                     const Icon(
-                      Icons.calendar_month,
+                      Icons
+                          .calendar_month,
                       color:
-                          Color(0xFF1687FF),
+                          Color(
+                        0xFF1687FF,
+                      ),
                     ),
-                    const SizedBox(width: 14),
+                    const SizedBox(
+                      width: 14,
+                    ),
                     Expanded(
-                      child: Column(
+                      child:
+                          Column(
                         crossAxisAlignment:
-                            CrossAxisAlignment.start,
+                            CrossAxisAlignment
+                                .start,
                         children: [
                           const Text(
                             'Travel Date',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color:
-                                  Colors.white70,
+                            style:
+                                TextStyle(
+                              fontSize:
+                                  13,
+                              color: Colors
+                                  .white70,
                             ),
                           ),
                           const SizedBox(
-                              height: 5),
+                            height: 5,
+                          ),
                           Text(
                             formatDate(
                               travelDate,
                             ),
                             style:
                                 const TextStyle(
-                              fontSize: 17,
+                              fontSize:
+                                  17,
                               fontWeight:
-                                  FontWeight.bold,
+                                  FontWeight
+                                      .bold,
                             ),
                           ),
                         ],
                       ),
                     ),
                     const Icon(
-                      Icons.arrow_forward_ios,
+                      Icons
+                          .arrow_forward_ios,
                       size: 17,
                     ),
                   ],
@@ -1149,37 +1734,63 @@ class _BookingPageState extends State<BookingPage> {
               ),
             ),
 
-            const SizedBox(height: 25),
+            const SizedBox(
+              height: 25,
+            ),
+
+            // ==================================================
+            // FARE SUMMARY
+            // ==================================================
 
             Container(
-              width: double.infinity,
+              width:
+                  double.infinity,
               padding:
-                  const EdgeInsets.all(20),
-              decoration: BoxDecoration(
+                  const EdgeInsets.all(
+                20,
+              ),
+              decoration:
+                  BoxDecoration(
                 gradient:
                     const LinearGradient(
                   colors: [
-                    Color(0xFF10243B),
-                    Color(0xFF0B2942),
+                    Color(
+                      0xFF10243B,
+                    ),
+                    Color(
+                      0xFF0B2942,
+                    ),
                   ],
                 ),
                 borderRadius:
-                    BorderRadius.circular(22),
+                    BorderRadius.circular(
+                  22,
+                ),
               ),
-              child: Column(
+              child:
+                  Column(
                 crossAxisAlignment:
-                    CrossAxisAlignment.start,
+                    CrossAxisAlignment
+                        .start,
                 children: [
                   const Text(
                     'FARE SUMMARY',
-                    style: TextStyle(
+                    style:
+                        TextStyle(
                       fontSize: 17,
                       fontWeight:
                           FontWeight.bold,
                     ),
                   ),
 
-                  const SizedBox(height: 15),
+                  const SizedBox(
+                    height: 15,
+                  ),
+
+                  fareRow(
+                    'Actual Distance',
+                    '${chargeableKm.toStringAsFixed(1)} km',
+                  ),
 
                   fareRow(
                     'Rate',
@@ -1187,18 +1798,13 @@ class _BookingPageState extends State<BookingPage> {
                   ),
 
                   fareRow(
-                    'Chargeable Distance',
-                    '${chargeableKm.toStringAsFixed(0)} km',
-                  ),
-
-                  fareRow(
                     'Distance Fare',
-                    '₹${distanceFare.toStringAsFixed(0)}',
+                    '₹${distanceFare.toStringAsFixed(2)}',
                   ),
 
                   fareRow(
                     'Holding',
-                    '₹${holdingFare.toStringAsFixed(0)}',
+                    '₹${holdingFare.toStringAsFixed(2)}',
                   ),
 
                   const Divider(
@@ -1207,58 +1813,76 @@ class _BookingPageState extends State<BookingPage> {
 
                   fareRow(
                     'TOTAL',
-                    '₹${totalFare.toStringAsFixed(0)}',
+                    '₹${totalFare.toStringAsFixed(2)}',
                     bold: true,
                   ),
 
-                  const SizedBox(height: 8),
+                  const SizedBox(
+                    height: 8,
+                  ),
 
                   fareRow(
                     'Advance • 30%',
-                    '₹${advanceAmount.toStringAsFixed(0)}',
+                    '₹${advanceAmount.toStringAsFixed(2)}',
                   ),
 
                   fareRow(
                     'Balance • 70%',
-                    '₹${balanceAmount.toStringAsFixed(0)}',
+                    '₹${balanceAmount.toStringAsFixed(2)}',
                   ),
                 ],
               ),
             ),
 
-            const SizedBox(height: 28),
+            const SizedBox(
+              height: 28,
+            ),
+
+            // ==================================================
+            // CONFIRM
+            // ==================================================
 
             SizedBox(
-              width: double.infinity,
+              width:
+                  double.infinity,
               height: 58,
-              child: ElevatedButton(
+              child:
+                  ElevatedButton(
                 onPressed:
-                    loading
+                    loading ||
+                            calculatingDistance
                         ? null
                         : confirmBooking,
                 child: loading
                     ? const CircularProgressIndicator(
-                        color: Colors.white,
+                        color:
+                            Colors.white,
                       )
                     : const Text(
                         'CONFIRM BOOKING',
-                        style: TextStyle(
-                          fontSize: 17,
+                        style:
+                            TextStyle(
+                          fontSize:
+                              17,
                           fontWeight:
-                              FontWeight.bold,
+                              FontWeight
+                                  .bold,
                         ),
                       ),
               ),
             ),
 
-            const SizedBox(height: 15),
+            const SizedBox(
+              height: 15,
+            ),
 
             Text(
               '30% advance payment will be collected online.',
-              textAlign: TextAlign.center,
+              textAlign:
+                  TextAlign.center,
               style: TextStyle(
-                color:
-                    Colors.white.withOpacity(.55),
+                color: Colors.white
+                    .withOpacity(.55),
                 fontSize: 13,
               ),
             ),
@@ -1322,9 +1946,8 @@ class MyBookingsPage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'My Bookings',
-        ),
+        title:
+            const Text('My Bookings'),
         centerTitle: true,
       ),
       body: user == null
@@ -1333,19 +1956,26 @@ class MyBookingsPage extends StatelessWidget {
                 'Please login first',
               ),
             )
-          : StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore
-                  .instance
-                  .collection('bookings')
-                  .where(
-                    'userId',
-                    isEqualTo: user.uid,
-                  )
-                  .snapshots(),
+          : StreamBuilder<
+              QuerySnapshot>(
+              stream:
+                  FirebaseFirestore
+                      .instance
+                      .collection(
+                        'bookings',
+                      )
+                      .where(
+                        'userId',
+                        isEqualTo:
+                            user.uid,
+                      )
+                      .snapshots(),
               builder:
                   (context, snapshot) {
-                if (snapshot.connectionState ==
-                    ConnectionState.waiting) {
+                if (snapshot
+                        .connectionState ==
+                    ConnectionState
+                        .waiting) {
                   return const Center(
                     child:
                         CircularProgressIndicator(),
@@ -1361,7 +1991,8 @@ class MyBookingsPage extends StatelessWidget {
                 }
 
                 final docs =
-                    snapshot.data?.docs ??
+                    snapshot.data
+                            ?.docs ??
                         [];
 
                 if (docs.isEmpty) {
@@ -1372,40 +2003,46 @@ class MyBookingsPage extends StatelessWidget {
                   );
                 }
 
-                final bookings = [...docs];
+                final bookings =
+                    [...docs];
 
-                bookings.sort((a, b) {
-                  final aData =
-                      a.data()
-                          as Map<String,
-                              dynamic>;
+                bookings.sort(
+                  (a, b) {
+                    final aData =
+                        a.data()
+                            as Map<String,
+                                dynamic>;
 
-                  final bData =
-                      b.data()
-                          as Map<String,
-                              dynamic>;
+                    final bData =
+                        b.data()
+                            as Map<String,
+                                dynamic>;
 
-                  final aTime =
-                      aData['createdAt']
-                          as Timestamp?;
+                    final aTime =
+                        aData[
+                                'createdAt']
+                            as Timestamp?;
 
-                  final bTime =
-                      bData['createdAt']
-                          as Timestamp?;
+                    final bTime =
+                        bData[
+                                'createdAt']
+                            as Timestamp?;
 
-                  return
-                      (bTime?.millisecondsSinceEpoch ??
-                              0)
-                          .compareTo(
-                    aTime
-                            ?.millisecondsSinceEpoch ??
-                        0,
-                  );
-                });
+                    return (bTime
+                                ?.millisecondsSinceEpoch ??
+                            0)
+                        .compareTo(
+                      aTime?.millisecondsSinceEpoch ??
+                          0,
+                    );
+                  },
+                );
 
                 return ListView.builder(
                   padding:
-                      const EdgeInsets.all(20),
+                      const EdgeInsets.all(
+                    20,
+                  ),
                   itemCount:
                       bookings.length,
                   itemBuilder:
@@ -1419,7 +2056,8 @@ class MyBookingsPage extends StatelessWidget {
                     return BookingCard(
                       data: data,
                       bookingId:
-                          bookings[index].id,
+                          bookings[index]
+                              .id,
                     );
                   },
                 );
@@ -1444,10 +2082,12 @@ class BookingCard extends StatelessWidget {
   });
 
   String formatBookingDate() {
-    final value = data['travelDate'];
+    final value =
+        data['travelDate'];
 
     if (value is Timestamp) {
-      final date = value.toDate();
+      final date =
+          value.toDate();
 
       return '${date.day.toString().padLeft(2, '0')}/'
           '${date.month.toString().padLeft(2, '0')}/'
@@ -1457,16 +2097,36 @@ class BookingCard extends StatelessWidget {
     return 'Not selected';
   }
 
+  String money(dynamic value) {
+    final number =
+        value is num
+            ? value.toDouble()
+            : double.tryParse(
+                    '$value',
+                  ) ??
+                0;
+
+    return number
+        .toStringAsFixed(2);
+  }
+
   @override
   Widget build(BuildContext context) {
     final status =
-        data['status']?.toString() ??
+        data['status']
+                ?.toString() ??
             'Pending';
 
     final paymentStatus =
         data['paymentStatus']
                 ?.toString() ??
             'Pending';
+
+    final distance =
+        data['distanceKm'];
+
+    final holding =
+        data['holdingHours'];
 
     final total =
         data['totalAmount'];
@@ -1479,16 +2139,22 @@ class BookingCard extends StatelessWidget {
 
     return Container(
       margin:
-          const EdgeInsets.only(bottom: 18),
+          const EdgeInsets.only(
+        bottom: 18,
+      ),
       padding:
           const EdgeInsets.all(22),
-      decoration: BoxDecoration(
+      decoration:
+          BoxDecoration(
         color:
             const Color(0xFF0B2942),
         borderRadius:
-            BorderRadius.circular(24),
+            BorderRadius.circular(
+          24,
+        ),
       ),
-      child: Column(
+      child:
+          Column(
         crossAxisAlignment:
             CrossAxisAlignment.start,
         children: [
@@ -1500,11 +2166,14 @@ class BookingCard extends StatelessWidget {
                     Color(0xFF1687FF),
                 size: 42,
               ),
-              const SizedBox(width: 12),
+              const SizedBox(
+                width: 12,
+              ),
               const Expanded(
                 child: Text(
                   'Maruti Ertiga',
-                  style: TextStyle(
+                  style:
+                      TextStyle(
                     fontSize: 22,
                     fontWeight:
                         FontWeight.bold,
@@ -1517,66 +2186,98 @@ class BookingCard extends StatelessWidget {
             ],
           ),
 
-          const SizedBox(height: 18),
+          const SizedBox(
+            height: 18,
+          ),
 
           Text(
             'Pickup: ${data['pickup'] ?? ''}',
           ),
 
-          const SizedBox(height: 10),
+          const SizedBox(
+            height: 10,
+          ),
 
           Text(
             'Drop: ${data['drop'] ?? ''}',
           ),
 
-          const SizedBox(height: 10),
+          const SizedBox(
+            height: 10,
+          ),
 
           Text(
             'Travel Date: ${formatBookingDate()}',
           ),
 
-          const SizedBox(height: 10),
+          const SizedBox(
+            height: 10,
+          ),
 
           Text(
             'Type: ${data['vehicleType'] ?? ''}',
           ),
 
-          const SizedBox(height: 10),
-
-          Text(
-            'Distance: ${data['distanceKm'] ?? 0} km',
+          const SizedBox(
+            height: 10,
           ),
 
-          const SizedBox(height: 10),
-
           Text(
-            'Holding: ${data['holdingHours'] ?? 0} hour',
+            'Actual Distance: '
+            '${distance ?? 0} km',
           ),
 
-          const SizedBox(height: 14),
+          const SizedBox(
+            height: 10,
+          ),
 
           Text(
-            'Total: ₹${total ?? 0}',
-            style: const TextStyle(
+            'Rate: '
+            '₹${data['ratePerKm'] ?? 0}/km',
+          ),
+
+          const SizedBox(
+            height: 10,
+          ),
+
+          Text(
+            'Holding: '
+            '${holding ?? 0} hour',
+          ),
+
+          const SizedBox(
+            height: 14,
+          ),
+
+          Text(
+            'Total: ₹${money(total)}',
+            style:
+                const TextStyle(
               fontWeight:
                   FontWeight.bold,
-              fontSize: 16,
+              fontSize: 17,
             ),
           ),
 
-          const SizedBox(height: 6),
-
-          Text(
-            'Advance: ₹${advance ?? 0}',
+          const SizedBox(
+            height: 6,
           ),
 
-          const SizedBox(height: 6),
-
           Text(
-            'Balance: ₹${balance ?? 0}',
+            'Advance: ₹${money(advance)}',
           ),
 
-          const SizedBox(height: 10),
+          const SizedBox(
+            height: 6,
+          ),
+
+          Text(
+            'Balance: ₹${money(balance)}',
+          ),
+
+          const SizedBox(
+            height: 10,
+          ),
 
           Text(
             'Payment: $paymentStatus',
@@ -1590,7 +2291,9 @@ class BookingCard extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(
+            height: 12,
+          ),
 
           Text(
             '22 km/l • West Bengal',
@@ -1600,7 +2303,9 @@ class BookingCard extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(
+            height: 12,
+          ),
 
           Text(
             'Booking ID: $bookingId',
@@ -1636,17 +2341,22 @@ class StatusBadge extends StatelessWidget {
         horizontal: 14,
         vertical: 9,
       ),
-      decoration: BoxDecoration(
-        color: status == 'Confirmed'
+      decoration:
+          BoxDecoration(
+        color: status ==
+                'Confirmed'
             ? Colors.green
                 .withOpacity(.25)
-            : status == 'Rejected'
+            : status ==
+                    'Rejected'
                 ? Colors.red
                     .withOpacity(.25)
                 : Colors.orange
                     .withOpacity(.25),
         borderRadius:
-            BorderRadius.circular(30),
+            BorderRadius.circular(
+          30,
+        ),
       ),
       child: Text(
         status,
@@ -1654,7 +2364,8 @@ class StatusBadge extends StatelessWidget {
           color: status ==
                   'Confirmed'
               ? Colors.greenAccent
-              : status == 'Rejected'
+              : status ==
+                      'Rejected'
                   ? Colors.redAccent
                   : Colors.orangeAccent,
           fontWeight:
@@ -1720,6 +2431,19 @@ class AdminPanel extends StatelessWidget {
     }
   }
 
+  String money(dynamic value) {
+    final number =
+        value is num
+            ? value.toDouble()
+            : double.tryParse(
+                    '$value',
+                  ) ??
+                0;
+
+    return number
+        .toStringAsFixed(2);
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!isAdmin) {
@@ -1731,7 +2455,8 @@ class AdminPanel extends StatelessWidget {
         body: const Center(
           child: Text(
             'Admin access denied',
-            style: TextStyle(
+            style:
+                TextStyle(
               fontSize: 20,
               fontWeight:
                   FontWeight.bold,
@@ -1745,21 +2470,29 @@ class AdminPanel extends StatelessWidget {
       appBar: AppBar(
         title: const Text(
           'HR RIDE ADMIN',
-          style: TextStyle(
+          style:
+              TextStyle(
             fontWeight:
                 FontWeight.bold,
           ),
         ),
         centerTitle: true,
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('bookings')
-            .snapshots(),
+      body: StreamBuilder<
+          QuerySnapshot>(
+        stream:
+            FirebaseFirestore
+                .instance
+                .collection(
+                  'bookings',
+                )
+                .snapshots(),
         builder:
             (context, snapshot) {
-          if (snapshot.connectionState ==
-              ConnectionState.waiting) {
+          if (snapshot
+                  .connectionState ==
+              ConnectionState
+                  .waiting) {
             return const Center(
               child:
                   CircularProgressIndicator(),
@@ -1775,13 +2508,15 @@ class AdminPanel extends StatelessWidget {
           }
 
           final docs =
-              snapshot.data?.docs ?? [];
+              snapshot.data?.docs ??
+                  [];
 
           if (docs.isEmpty) {
             return const Center(
               child: Text(
                 'No bookings available',
-                style: TextStyle(
+                style:
+                    TextStyle(
                   fontSize: 18,
                 ),
               ),
@@ -1790,11 +2525,15 @@ class AdminPanel extends StatelessWidget {
 
           return ListView.builder(
             padding:
-                const EdgeInsets.all(18),
-            itemCount: docs.length,
+                const EdgeInsets.all(
+              18,
+            ),
+            itemCount:
+                docs.length,
             itemBuilder:
                 (context, index) {
-              final doc = docs[index];
+              final doc =
+                  docs[index];
 
               final data =
                   doc.data()
@@ -1824,7 +2563,7 @@ class AdminPanel extends StatelessWidget {
               String customer;
 
               if (customerName
-                      .isNotEmpty) {
+                  .isNotEmpty) {
                 customer =
                     '$customerName\n'
                     '$customerEmail';
@@ -1843,6 +2582,9 @@ class AdminPanel extends StatelessWidget {
               final advance =
                   data['advanceAmount'];
 
+              final balance =
+                  data['balanceAmount'];
+
               final paymentStatus =
                   data['paymentStatus']
                           ?.toString() ??
@@ -1854,17 +2596,22 @@ class AdminPanel extends StatelessWidget {
                   bottom: 18,
                 ),
                 padding:
-                    const EdgeInsets.all(20),
+                    const EdgeInsets.all(
+                  20,
+                ),
                 decoration:
                     BoxDecoration(
                   color:
-                      const Color(0xFF10243B),
+                      const Color(
+                    0xFF10243B,
+                  ),
                   borderRadius:
                       BorderRadius.circular(
                     22,
                   ),
                 ),
-                child: Column(
+                child:
+                    Column(
                   crossAxisAlignment:
                       CrossAxisAlignment
                           .start,
@@ -1875,7 +2622,9 @@ class AdminPanel extends StatelessWidget {
                           Icons
                               .directions_car,
                           color:
-                              Color(0xFF1687FF),
+                              Color(
+                            0xFF1687FF,
+                          ),
                           size: 40,
                         ),
                         const SizedBox(
@@ -1886,7 +2635,8 @@ class AdminPanel extends StatelessWidget {
                             'Maruti Ertiga',
                             style:
                                 TextStyle(
-                              fontSize: 21,
+                              fontSize:
+                                  21,
                               fontWeight:
                                   FontWeight
                                       .bold,
@@ -1905,11 +2655,8 @@ class AdminPanel extends StatelessWidget {
                     ),
 
                     Text(
-                      'Pickup: ${data['pickup'] ?? ''}',
-                      style:
-                          const TextStyle(
-                        fontSize: 16,
-                      ),
+                      'Pickup: '
+                      '${data['pickup'] ?? ''}',
                     ),
 
                     const SizedBox(
@@ -1917,11 +2664,8 @@ class AdminPanel extends StatelessWidget {
                     ),
 
                     Text(
-                      'Drop: ${data['drop'] ?? ''}',
-                      style:
-                          const TextStyle(
-                        fontSize: 16,
-                      ),
+                      'Drop: '
+                      '${data['drop'] ?? ''}',
                     ),
 
                     const SizedBox(
@@ -1930,9 +2674,13 @@ class AdminPanel extends StatelessWidget {
 
                     Text(
                       'Customer:\n$customer',
-                      style: TextStyle(
-                        color: Colors.white
-                            .withOpacity(.65),
+                      style:
+                          TextStyle(
+                        color: Colors
+                            .white
+                            .withOpacity(
+                          .65,
+                        ),
                       ),
                     ),
 
@@ -1950,8 +2698,17 @@ class AdminPanel extends StatelessWidget {
                     ),
 
                     Text(
-                      'Distance: '
+                      'Actual Distance: '
                       '${data['distanceKm'] ?? 0} km',
+                    ),
+
+                    const SizedBox(
+                      height: 8,
+                    ),
+
+                    Text(
+                      'Rate: '
+                      '₹${data['ratePerKm'] ?? 0}/km',
                     ),
 
                     const SizedBox(
@@ -1968,11 +2725,14 @@ class AdminPanel extends StatelessWidget {
                     ),
 
                     Text(
-                      'Total: ₹${total ?? 0}',
+                      'Total: '
+                      '₹${money(total)}',
                       style:
                           const TextStyle(
                         fontWeight:
-                            FontWeight.bold,
+                            FontWeight
+                                .bold,
+                        fontSize: 16,
                       ),
                     ),
 
@@ -1981,11 +2741,21 @@ class AdminPanel extends StatelessWidget {
                     ),
 
                     Text(
-                      'Advance: ₹${advance ?? 0}',
+                      'Advance: '
+                      '₹${money(advance)}',
                     ),
 
                     const SizedBox(
                       height: 6,
+                    ),
+
+                    Text(
+                      'Balance: '
+                      '₹${money(balance)}',
+                    ),
+
+                    const SizedBox(
+                      height: 8,
                     ),
 
                     Text(
@@ -2017,7 +2787,8 @@ class AdminPanel extends StatelessWidget {
                             child:
                                 ElevatedButton
                                     .icon(
-                              onPressed: () {
+                              onPressed:
+                                  () {
                                 updateBooking(
                                   context,
                                   doc.id,
@@ -2043,7 +2814,8 @@ class AdminPanel extends StatelessWidget {
                             child:
                                 OutlinedButton
                                     .icon(
-                              onPressed: () {
+                              onPressed:
+                                  () {
                                 updateBooking(
                                   context,
                                   doc.id,
