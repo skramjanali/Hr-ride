@@ -1,15 +1,16 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
-
-// ============================================================
-// MAIN
-// ============================================================
+import 'package:latlong2/latlong.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,18 +43,61 @@ class HRRideApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      debugShowCheckedModeBanner: false,
       title: 'HR RIDE',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF071426),
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF1687FF),
-          brightness: Brightness.dark,
-        ),
         useMaterial3: true,
+        colorSchemeSeed: Colors.blue,
+        scaffoldBackgroundColor: const Color(0xFF101318),
+        cardTheme: const CardThemeData(
+          color: Color(0xFF191E25),
+          elevation: 2,
+        ),
       ),
-      home: const LoginPage(),
+      home: const AuthGate(),
+    );
+  }
+}
+
+// ============================================================
+// CONSTANTS
+// ============================================================
+
+const String adminPhone = '+16505551234';
+
+const String backendUrl = 'https://hr-ride.onrender.com';
+
+const double acRate = 20;
+const double nonAcRate = 17;
+const double holdingRate = 100;
+
+// ============================================================
+// AUTH GATE
+// ============================================================
+
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+
+        if (snapshot.data == null) {
+          return const LoginPage();
+        }
+
+        return const HomePage();
+      },
     );
   }
 }
@@ -73,188 +117,9 @@ class _LoginPageState extends State<LoginPage> {
   final phoneController = TextEditingController();
   final otpController = TextEditingController();
 
+  String? verificationId;
   bool otpSent = false;
   bool loading = false;
-  String verificationId = '';
-
-  Future<void> sendOTP() async {
-    final input = phoneController.text.trim();
-
-    if (input.isEmpty) {
-      showError('Enter mobile number');
-      return;
-    }
-
-    final phone = input.startsWith('+') ? input : '+91$input';
-
-    if (loading) return;
-
-    setState(() => loading = true);
-
-    try {
-      await FirebaseAuth.instance.verifyPhoneNumber(
-        phoneNumber: phone,
-        verificationCompleted:
-            (PhoneAuthCredential credential) async {
-          try {
-            await FirebaseAuth.instance.signInWithCredential(
-              credential,
-            );
-
-            if (!mounted) return;
-
-            setState(() => loading = false);
-            goHome();
-          } catch (e) {
-            if (!mounted) return;
-
-            setState(() => loading = false);
-            showError('Firebase Error:\n$e');
-          }
-        },
-        verificationFailed: (FirebaseAuthException e) {
-          if (!mounted) return;
-
-          setState(() => loading = false);
-
-          showError(
-            'Firebase OTP Error:\n'
-            '${e.code}\n'
-            '${e.message ?? ''}',
-          );
-        },
-        codeSent: (
-          String id,
-          int? resendToken,
-        ) {
-          if (!mounted) return;
-
-          setState(() {
-            verificationId = id;
-            otpSent = true;
-            loading = false;
-          });
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('OTP sent successfully'),
-            ),
-          );
-        },
-        codeAutoRetrievalTimeout: (String id) {
-          verificationId = id;
-        },
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      setState(() => loading = false);
-      showError('OTP Error:\n$e');
-    }
-  }
-
-  Future<void> verifyOTP() async {
-    final otp = otpController.text.trim();
-
-    if (verificationId.isEmpty) {
-      showError('Please request OTP again.');
-      return;
-    }
-
-    if (otp.length != 6) {
-      showError('Enter 6 digit OTP');
-      return;
-    }
-
-    if (loading) return;
-
-    setState(() => loading = true);
-
-    try {
-      final credential = PhoneAuthProvider.credential(
-        verificationId: verificationId,
-        smsCode: otp,
-      );
-
-      await FirebaseAuth.instance.signInWithCredential(
-        credential,
-      );
-
-      if (!mounted) return;
-
-      goHome();
-    } on FirebaseAuthException catch (e) {
-      showError(
-        'Firebase Error:\n'
-        '${e.code}\n'
-        '${e.message ?? ''}',
-      );
-    } catch (e) {
-      showError('OTP Verification Error:\n$e');
-    } finally {
-      if (mounted) {
-        setState(() => loading = false);
-      }
-    }
-  }
-
-  Future<void> googleLogin() async {
-    if (loading) return;
-
-    setState(() => loading = true);
-
-    try {
-      final GoogleSignInAccount googleUser =
-          await GoogleSignIn.instance.authenticate();
-
-      final GoogleSignInAuthentication googleAuth =
-          googleUser.authentication;
-
-      final idToken = googleAuth.idToken;
-
-      if (idToken == null || idToken.isEmpty) {
-        throw Exception('Google ID token is missing.');
-      }
-
-      final credential = GoogleAuthProvider.credential(
-        idToken: idToken,
-      );
-
-      await FirebaseAuth.instance.signInWithCredential(
-        credential,
-      );
-
-      if (!mounted) return;
-
-      goHome();
-    } catch (e) {
-      if (!mounted) return;
-
-      showError('Google Login Error:\n$e');
-    } finally {
-      if (mounted) {
-        setState(() => loading = false);
-      }
-    }
-  }
-
-  void showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 8),
-      ),
-    );
-  }
-
-  void goHome() {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const HomePage(),
-      ),
-    );
-  }
 
   @override
   void dispose() {
@@ -263,157 +128,221 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
+  Future<void> sendOtp() async {
+    final phone = phoneController.text.trim();
+
+    if (phone.isEmpty) {
+      showMessage('Enter mobile number');
+      return;
+    }
+
+    setState(() {
+      loading = true;
+    });
+
+    try {
+      await FirebaseAuth.instance.verifyPhoneNumber(
+        phoneNumber: phone.startsWith('+') ? phone : '+91$phone',
+        verificationCompleted: (credential) async {
+          await FirebaseAuth.instance.signInWithCredential(credential);
+        },
+        verificationFailed: (error) {
+          if (mounted) {
+            showMessage(error.message ?? 'OTP verification failed');
+          }
+        },
+        codeSent: (id, _) {
+          if (!mounted) return;
+
+          setState(() {
+            verificationId = id;
+            otpSent = true;
+          });
+
+          showMessage('OTP sent successfully');
+        },
+        codeAutoRetrievalTimeout: (id) {
+          verificationId = id;
+        },
+      );
+    } catch (e) {
+      showMessage('OTP Error: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          loading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> verifyOtp() async {
+    if (verificationId == null) {
+      showMessage('Send OTP first');
+      return;
+    }
+
+    final otp = otpController.text.trim();
+
+    if (otp.length < 6) {
+      showMessage('Enter 6 digit OTP');
+      return;
+    }
+
+    setState(() {
+      loading = true;
+    });
+
+    try {
+      final credential = PhoneAuthProvider.credential(
+        verificationId: verificationId!,
+        smsCode: otp,
+      );
+
+      await FirebaseAuth.instance.signInWithCredential(credential);
+    } catch (e) {
+      showMessage('Invalid OTP');
+    } finally {
+      if (mounted) {
+        setState(() {
+          loading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> googleLogin() async {
+    setState(() {
+      loading = true;
+    });
+
+    try {
+      final account = await GoogleSignIn.instance.authenticate();
+
+      final authentication = account.authentication;
+
+      final credential = GoogleAuthProvider.credential(
+        idToken: authentication.idToken,
+      );
+
+      await FirebaseAuth.instance.signInWithCredential(credential);
+    } catch (e) {
+      showMessage('Google Login Error: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          loading = false;
+        });
+      }
+    }
+  }
+
+  void showMessage(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            children: [
-              const SizedBox(height: 50),
-
-              Container(
-                width: 110,
-                height: 110,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1687FF),
-                  borderRadius: BorderRadius.circular(30),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x661687FF),
-                      blurRadius: 30,
-                      spreadRadius: 3,
-                    ),
-                  ],
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              children: [
+                const Icon(
+                  Icons.local_taxi_rounded,
+                  size: 80,
+                  color: Colors.blue,
                 ),
-                child: const Icon(
-                  Icons.directions_car,
-                  size: 62,
-                  color: Colors.white,
-                ),
-              ),
-
-              const SizedBox(height: 25),
-
-              const Text(
-                'HR RIDE',
-                style: TextStyle(
-                  fontSize: 36,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 3,
-                ),
-              ),
-
-              const SizedBox(height: 8),
-
-              const Text(
-                'YOUR RIDE • OUR PRIORITY',
-                style: TextStyle(
-                  color: Color(0xFFB8C7D9),
-                  letterSpacing: 1.5,
-                ),
-              ),
-
-              const SizedBox(height: 45),
-
-              TextField(
-                controller: phoneController,
-                keyboardType: TextInputType.phone,
-                decoration: InputDecoration(
-                  labelText: 'Mobile Number',
-                  hintText: '10 digit number',
-                  prefixIcon: const Icon(Icons.phone),
-                  filled: true,
-                  fillColor: const Color(0xFF10243B),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(18),
-                    borderSide: BorderSide.none,
+                const SizedBox(height: 15),
+                const Text(
+                  'HR RIDE',
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-              ),
-
-              if (otpSent) ...[
-                const SizedBox(height: 15),
+                const SizedBox(height: 8),
+                const Text(
+                  'Premium Cab Rental',
+                  style: TextStyle(
+                    color: Colors.white70,
+                  ),
+                ),
+                const SizedBox(height: 35),
 
                 TextField(
-                  controller: otpController,
-                  keyboardType: TextInputType.number,
-                  maxLength: 6,
-                  decoration: InputDecoration(
-                    labelText: 'OTP',
-                    hintText: 'Enter 6 digit OTP',
-                    prefixIcon: const Icon(Icons.lock),
-                    counterText: '',
-                    filled: true,
-                    fillColor: const Color(0xFF10243B),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(18),
-                      borderSide: BorderSide.none,
+                  controller: phoneController,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(
+                    labelText: 'Mobile Number',
+                    hintText: '+91XXXXXXXXXX',
+                    prefixIcon: Icon(Icons.phone),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+
+                const SizedBox(height: 15),
+
+                if (otpSent)
+                  TextField(
+                    controller: otpController,
+                    keyboardType: TextInputType.number,
+                    maxLength: 6,
+                    decoration: const InputDecoration(
+                      labelText: 'OTP',
+                      prefixIcon: Icon(Icons.lock),
+                      border: OutlineInputBorder(),
                     ),
+                  ),
+
+                const SizedBox(height: 10),
+
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: loading
+                        ? null
+                        : otpSent
+                            ? verifyOtp
+                            : sendOtp,
+                    child: loading
+                        ? const SizedBox(
+                            height: 22,
+                            width: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : Text(
+                            otpSent
+                                ? 'VERIFY OTP'
+                                : 'SEND OTP',
+                          ),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                const Text('OR'),
+
+                const SizedBox(height: 20),
+
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: loading ? null : googleLogin,
+                    icon: const Icon(Icons.login),
+                    label: const Text('Continue with Google'),
                   ),
                 ),
               ],
-
-              const SizedBox(height: 20),
-
-              SizedBox(
-                width: double.infinity,
-                height: 58,
-                child: ElevatedButton(
-                  onPressed:
-                      loading ? null : (otpSent ? verifyOTP : sendOTP),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1687FF),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                  ),
-                  child: loading
-                      ? const CircularProgressIndicator(
-                          color: Colors.white,
-                        )
-                      : Text(
-                          otpSent
-                              ? 'VERIFY OTP'
-                              : 'CONTINUE WITH OTP',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                ),
-              ),
-
-              const SizedBox(height: 25),
-
-              const Row(
-                children: [
-                  Expanded(child: Divider()),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 12),
-                    child: Text('OR'),
-                  ),
-                  Expanded(child: Divider()),
-                ],
-              ),
-
-              const SizedBox(height: 25),
-
-              SizedBox(
-                width: double.infinity,
-                height: 58,
-                child: OutlinedButton(
-                  onPressed: loading ? null : googleLogin,
-                  child: const Text(
-                    'Continue with Google',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -428,8 +357,6 @@ class _LoginPageState extends State<LoginPage> {
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
-  static const String adminPhone = '+16505551234';
-
   bool get isAdmin {
     final user = FirebaseAuth.instance.currentUser;
     return user?.phoneNumber == adminPhone;
@@ -437,182 +364,193 @@ class HomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text(
           'HR RIDE',
-          style: TextStyle(fontWeight: FontWeight.bold),
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
         ),
-        centerTitle: true,
         actions: [
-          if (isAdmin)
-            IconButton(
-              icon: const Icon(Icons.admin_panel_settings),
-              tooltip: 'Admin Panel',
-              onPressed: () {
+          IconButton(
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+            },
+            icon: const Icon(Icons.logout),
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Row(
+                  children: [
+                    const CircleAvatar(
+                      radius: 28,
+                      child: Icon(Icons.person),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            user?.displayName ??
+                                'HR RIDE Customer',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            user?.phoneNumber ??
+                                user?.email ??
+                                '',
+                            style: const TextStyle(
+                              color: Colors.white70,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            _MenuButton(
+              icon: Icons.local_taxi,
+              title: 'Book HR RIDE',
+              subtitle: 'Maruti Ertiga Cab',
+              onTap: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => const AdminPanel(),
+                    builder: (_) => const BookingPage(),
                   ),
                 );
               },
             ),
-        ],
+
+            const SizedBox(height: 12),
+
+            _MenuButton(
+              icon: Icons.receipt_long,
+              title: 'My Bookings',
+              subtitle: 'View your bookings and trips',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const MyBookingsPage(),
+                  ),
+                );
+              },
+            ),
+
+            const SizedBox(height: 12),
+
+            if (isAdmin) ...[
+              _MenuButton(
+                icon: Icons.admin_panel_settings,
+                title: 'Admin Panel',
+                subtitle: 'Manage bookings',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const AdminPanel(),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+              _MenuButton(
+                icon: Icons.location_on,
+                title: 'Driver Mode',
+                subtitle: 'Live GPS & Trip Tracking',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const DriverModePage(),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ],
+        ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(22),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 20),
+    );
+  }
+}
 
-            const Text(
-              'Welcome to HR RIDE',
-              style: TextStyle(
-                fontSize: 30,
-                fontWeight: FontWeight.bold,
+class _MenuButton extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _MenuButton({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 27,
+                child: Icon(icon),
               ),
-            ),
-
-            const SizedBox(height: 8),
-
-            const Text(
-              'Premium rides across West Bengal',
-              style: TextStyle(
-                color: Color(0xFF9EB1C7),
-                fontSize: 15,
-              ),
-            ),
-
-            const SizedBox(height: 35),
-
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(22),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [
-                    Color(0xFF1687FF),
-                    Color(0xFF0B3D78),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        color: Colors.white60,
+                      ),
+                    ),
                   ],
                 ),
-                borderRadius: BorderRadius.circular(25),
               ),
-              child: const Row(
-                children: [
-                  Icon(
-                    Icons.directions_car,
-                    size: 62,
-                    color: Colors.white,
-                  ),
-                  SizedBox(width: 18),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Maruti Ertiga',
-                          style: TextStyle(
-                            fontSize: 23,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        SizedBox(height: 6),
-                        Text(
-                          'Comfort • Safe • Reliable',
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          '22 km/l • West Bengal',
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 22),
-
-            SizedBox(
-              width: double.infinity,
-              height: 58,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const BookingPage(),
-                    ),
-                  );
-                },
-                child: const Text(
-                  'BOOK YOUR RIDE',
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 15),
-
-            SizedBox(
-              width: double.infinity,
-              height: 58,
-              child: OutlinedButton.icon(
-                icon: const Icon(Icons.receipt_long),
-                label: const Text(
-                  'MY BOOKINGS',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const MyBookingsPage(),
-                    ),
-                  );
-                },
-              ),
-            ),
-
-            const SizedBox(height: 25),
-
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: const Color(0xFF10243B),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'HR RIDE SERVICE',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  SizedBox(height: 10),
-                  Text(
-                    'Premium cab rental service across West Bengal.',
-                    style: TextStyle(
-                      color: Color(0xFF9EB1C7),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+              const Icon(Icons.chevron_right),
+            ],
+          ),
         ),
       ),
     );
@@ -634,30 +572,20 @@ class _BookingPageState extends State<BookingPage> {
   final pickupController = TextEditingController();
   final dropController = TextEditingController();
   final distanceController = TextEditingController();
-  final holdingController =
-      TextEditingController(text: '0');
+  final holdingController = TextEditingController(text: '0');
 
-  static const String backendUrl =
-      'https://hr-ride.onrender.com';
-
-  bool loading = false;
-  bool calculatingDistance = false;
+  DateTime travelDate = DateTime.now();
 
   String vehicleType = 'AC';
-  DateTime? travelDate;
 
   double calculatedDistance = 0;
   int? durationMinutes;
 
-  static const double acRate = 20;
-  static const double nonAcRate = 17;
-  static const double holdingRate = 100;
+  bool calculatingDistance = false;
+  bool booking = false;
 
-  double get rate {
-    return vehicleType == 'AC'
-        ? acRate
-        : nonAcRate;
-  }
+  double get rate =>
+      vehicleType == 'AC' ? acRate : nonAcRate;
 
   double get enteredKm {
     return double.tryParse(
@@ -673,44 +601,35 @@ class _BookingPageState extends State<BookingPage> {
         0;
   }
 
-  // ==========================================================
-  // IMPORTANT:
-  // Actual KM = Chargeable KM
-  // No 200 KM minimum.
-  // ==========================================================
+  double get chargeableKm => enteredKm;
 
-  double get chargeableKm {
-    return enteredKm;
+  double get distanceFare =>
+      chargeableKm * rate;
+
+  double get holdingFare =>
+      holdingHours * holdingRate;
+
+  double get totalFare =>
+      distanceFare + holdingFare;
+
+  double get advanceAmount =>
+      totalFare * 0.30;
+
+  double get balanceAmount =>
+      totalFare - advanceAmount;
+
+  @override
+  void dispose() {
+    pickupController.dispose();
+    dropController.dispose();
+    distanceController.dispose();
+    holdingController.dispose();
+    super.dispose();
   }
-
-  double get distanceFare {
-    return chargeableKm * rate;
-  }
-
-  double get holdingFare {
-    return holdingHours * holdingRate;
-  }
-
-  double get totalFare {
-    return distanceFare + holdingFare;
-  }
-
-  double get advanceAmount {
-    return totalFare * 0.30;
-  }
-
-  double get balanceAmount {
-    return totalFare - advanceAmount;
-  }
-
-  // ==========================================================
-  // AUTO DISTANCE
-  // ==========================================================
 
   Future<void> calculateDistance() async {
     final pickup =
         pickupController.text.trim();
-
     final drop =
         dropController.text.trim();
 
@@ -802,19 +721,12 @@ class _BookingPageState extends State<BookingPage> {
       setState(() {
         calculatedDistance = distance;
         durationMinutes = duration;
-
         distanceController.text =
             distance.toStringAsFixed(1);
       });
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        SnackBar(
-          content: Text(
-            'Distance calculated: '
-            '${distance.toStringAsFixed(1)} KM',
-          ),
-        ),
+      showMessage(
+        'Distance: ${distance.toStringAsFixed(1)} KM',
       );
     } catch (e) {
       if (!mounted) return;
@@ -831,90 +743,55 @@ class _BookingPageState extends State<BookingPage> {
     }
   }
 
-  // ==========================================================
-  // DATE
-  // ==========================================================
-
-  Future<void> selectTravelDate() async {
-    final now = DateTime.now();
-
-    final selected = await showDatePicker(
+  Future<void> selectDate() async {
+    final selected =
+        await showDatePicker(
       context: context,
-      initialDate: now,
-      firstDate: now,
-      lastDate: DateTime(
-        now.year + 2,
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(
+        const Duration(days: 365),
       ),
-      helpText: 'Select Travel Date',
+      initialDate: travelDate,
     );
 
-    if (selected != null && mounted) {
+    if (selected != null) {
       setState(() {
         travelDate = selected;
       });
     }
   }
 
-  // ==========================================================
-  // CONFIRM BOOKING
-  // ==========================================================
-
-  Future<void> confirmBooking() async {
-    final pickup =
-        pickupController.text.trim();
-
-    final drop =
-        dropController.text.trim();
-
-    if (pickup.isEmpty ||
-        drop.isEmpty) {
-      showError(
-        'Please enter pickup and drop location',
-      );
-      return;
-    }
-
-    // Distance must come from backend.
-    if (enteredKm <= 0) {
-      showError(
-        'Please calculate the distance first.',
-      );
-      return;
-    }
-
-    if (travelDate == null) {
-      showError(
-        'Please select travel date',
-      );
-      return;
-    }
-
-    if (holdingHours < 0) {
-      showError(
-        'Invalid holding hours',
-      );
-      return;
-    }
-
+  Future<void> createBooking() async {
     final user =
         FirebaseAuth.instance.currentUser;
 
     if (user == null) {
+      showError('Please login first');
+      return;
+    }
+
+    if (pickupController.text.trim().isEmpty ||
+        dropController.text.trim().isEmpty) {
+      showError('Enter pickup and drop');
+      return;
+    }
+
+    if (enteredKm <= 0) {
       showError(
-        'Please login first',
+        'Calculate route distance first.',
       );
       return;
     }
 
-    if (loading) return;
-
-    setState(() => loading = true);
+    setState(() {
+      booking = true;
+    });
 
     try {
-      final booking =
-          await FirebaseFirestore.instance
-              .collection('bookings')
-              .add({
+      final doc = await FirebaseFirestore
+          .instance
+          .collection('bookings')
+          .add({
         'userId': user.uid,
         'userPhone':
             user.phoneNumber ?? '',
@@ -923,69 +800,48 @@ class _BookingPageState extends State<BookingPage> {
         'userEmail':
             user.email ?? '',
 
-        'pickup': pickup,
-        'drop': drop,
+        'pickup':
+            pickupController.text.trim(),
+        'drop':
+            dropController.text.trim(),
+
+        'vehicle': 'Maruti Ertiga',
+        'mileage': '22 km/l',
+        'region': 'West Bengal',
+
+        'vehicleType': vehicleType,
 
         'travelDate':
-            Timestamp.fromDate(
-          travelDate!,
-        ),
+            Timestamp.fromDate(travelDate),
 
-        'vehicle':
-            'Maruti Ertiga',
+        'distanceKm': enteredKm,
+        'chargeableKm': chargeableKm,
 
-        'vehicleType':
-            vehicleType,
-
-        'mileage':
-            '22 km/l',
-
-        'region':
-            'West Bengal',
-
-        // Actual distance.
-        'distanceKm':
-            enteredKm,
-
-        // Same as actual distance.
-        'chargeableKm':
-            chargeableKm,
-
-        'ratePerKm':
-            rate,
+        'ratePerKm': rate,
 
         'holdingHours':
             holdingHours,
-
         'holdingRate':
             holdingRate,
 
         'distanceFare':
             distanceFare,
-
         'holdingFare':
             holdingFare,
 
         'totalAmount':
             totalFare,
-
         'advanceAmount':
             advanceAmount,
-
         'balanceAmount':
             balanceAmount,
 
         'paymentStatus':
             'Pending',
+        'paymentId': '',
+        'orderId': '',
 
-        'paymentId':
-            '',
-
-        'orderId':
-            '',
-
-        'status':
-            'Pending',
+        'status': 'Pending',
 
         'createdAt':
             FieldValue.serverTimestamp(),
@@ -993,163 +849,68 @@ class _BookingPageState extends State<BookingPage> {
 
       if (!mounted) return;
 
-      setState(() => loading = false);
-
       showBillDialog(
-        booking.id,
-        pickup,
-        drop,
+        bookingId: doc.id,
       );
     } catch (e) {
-      if (!mounted) return;
-
-      setState(() => loading = false);
-
       showError(
         'Booking Error:\n$e',
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          booking = false;
+        });
+      }
     }
   }
 
-  // ==========================================================
-  // BILL DIALOG
-  // ==========================================================
-
-  void showBillDialog(
-    String bookingId,
-    String pickup,
-    String drop,
-  ) {
+  void showBillDialog({
+    required String bookingId,
+  }) {
     showDialog(
       context: context,
-      barrierDismissible: false,
       builder: (_) {
         return AlertDialog(
-          title: const Row(
-            children: [
-              Icon(
-                Icons.receipt_long,
-                color: Color(0xFF1687FF),
-              ),
-              SizedBox(width: 10),
-              Text('HR RIDE BILL'),
-            ],
+          title: const Text(
+            'Booking Created',
           ),
-          content:
-              SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                billLine(
-                  'Pickup',
-                  pickup,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Booking ID:\n$bookingId',
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Distance: ${enteredKm.toStringAsFixed(1)} KM',
+              ),
+              Text(
+                'Rate: ₹${rate.toStringAsFixed(0)}/KM',
+              ),
+              Text(
+                'Distance Fare: ₹${distanceFare.toStringAsFixed(0)}',
+              ),
+              Text(
+                'Holding: ₹${holdingFare.toStringAsFixed(0)}',
+              ),
+              const Divider(),
+              Text(
+                'Total: ₹${totalFare.toStringAsFixed(0)}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
                 ),
-
-                billLine(
-                  'Drop',
-                  drop,
-                ),
-
-                billLine(
-                  'Vehicle',
-                  'Maruti Ertiga',
-                ),
-
-                billLine(
-                  'Type',
-                  vehicleType,
-                ),
-
-                billLine(
-                  'Travel Date',
-                  formatDate(travelDate),
-                ),
-
-                const Divider(
-                  height: 25,
-                ),
-
-                billLine(
-                  'Actual Distance',
-                  '${enteredKm.toStringAsFixed(1)} KM',
-                ),
-
-                billLine(
-                  'Rate',
-                  '₹${rate.toStringAsFixed(0)}/KM',
-                ),
-
-                billLine(
-                  'Distance Fare',
-                  '₹${distanceFare.toStringAsFixed(2)}',
-                ),
-
-                billLine(
-                  'Holding',
-                  '${holdingHours.toStringAsFixed(1)} hour',
-                ),
-
-                billLine(
-                  'Holding Fare',
-                  '₹${holdingFare.toStringAsFixed(2)}',
-                ),
-
-                const Divider(
-                  height: 25,
-                ),
-
-                billLine(
-                  'TOTAL',
-                  '₹${totalFare.toStringAsFixed(2)}',
-                  bold: true,
-                ),
-
-                billLine(
-                  'Advance 30%',
-                  '₹${advanceAmount.toStringAsFixed(2)}',
-                ),
-
-                billLine(
-                  'Balance 70%',
-                  '₹${balanceAmount.toStringAsFixed(2)}',
-                ),
-
-                if (durationMinutes !=
-                    null)
-                  billLine(
-                    'Estimated Time',
-                    '${durationMinutes!} minutes',
-                  ),
-
-                const SizedBox(
-                  height: 12,
-                ),
-
-                Text(
-                  'Booking ID:\n$bookingId',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.white
-                        .withOpacity(.55),
-                  ),
-                ),
-
-                const SizedBox(
-                  height: 10,
-                ),
-
-                const Text(
-                  'Payment: Pending',
-                  style: TextStyle(
-                    color:
-                        Colors.orangeAccent,
-                    fontWeight:
-                        FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
+              ),
+              Text(
+                'Advance 30%: ₹${advanceAmount.toStringAsFixed(0)}',
+              ),
+              Text(
+                'Balance 70%: ₹${balanceAmount.toStringAsFixed(0)}',
+              ),
+            ],
           ),
           actions: [
             TextButton(
@@ -1157,9 +918,7 @@ class _BookingPageState extends State<BookingPage> {
                 Navigator.pop(context);
                 Navigator.pop(context);
               },
-              child: const Text(
-                'DONE',
-              ),
+              child: const Text('DONE'),
             ),
           ],
         );
@@ -1167,198 +926,73 @@ class _BookingPageState extends State<BookingPage> {
     );
   }
 
-  Widget billLine(
-    String title,
-    String value, {
-    bool bold = false,
-  }) {
-    return Padding(
-      padding:
-          const EdgeInsets.symmetric(
-        vertical: 5,
-      ),
-      child: Row(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              style: TextStyle(
-                fontWeight: bold
-                    ? FontWeight.bold
-                    : FontWeight.normal,
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Text(
-            value,
-            textAlign: TextAlign.end,
-            style: TextStyle(
-              fontWeight: bold
-                  ? FontWeight.bold
-                  : FontWeight.w600,
-              fontSize:
-                  bold ? 17 : 14,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  void showMessage(String message) {
+    if (!mounted) return;
 
-  void showError(String text) {
     ScaffoldMessenger.of(context)
         .showSnackBar(
-      SnackBar(
-        content: Text(text),
-      ),
+      SnackBar(content: Text(message)),
     );
   }
 
-  String formatDate(DateTime? date) {
-    if (date == null) {
-      return 'Select travel date';
-    }
-
-    return '${date.day.toString().padLeft(2, '0')}/'
-        '${date.month.toString().padLeft(2, '0')}/'
-        '${date.year}';
-  }
-
-  @override
-  void dispose() {
-    pickupController.dispose();
-    dropController.dispose();
-    distanceController.dispose();
-    holdingController.dispose();
-    super.dispose();
+  void showError(String message) {
+    showMessage(message);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Book Your Ride',
-        ),
-        centerTitle: true,
+        title: const Text('Book HR RIDE'),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         child: Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.stretch,
           children: [
-            const SizedBox(height: 10),
-
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Where are you going?',
-                style: TextStyle(
-                  fontSize: 27,
-                  fontWeight: FontWeight.bold,
-                ),
+            TextField(
+              controller: pickupController,
+              decoration:
+                  const InputDecoration(
+                labelText: 'Pickup Location',
+                prefixIcon:
+                    Icon(Icons.location_on),
+                border:
+                    OutlineInputBorder(),
               ),
             ),
 
-            const SizedBox(height: 25),
-
-            // ==================================================
-            // PICKUP
-            // ==================================================
+            const SizedBox(height: 12),
 
             TextField(
-              controller:
-                  pickupController,
-              textCapitalization:
-                  TextCapitalization.words,
-              decoration: InputDecoration(
-                labelText:
-                    'Pickup Location',
-                hintText:
-                    'Enter pickup',
+              controller: dropController,
+              decoration:
+                  const InputDecoration(
+                labelText: 'Drop Location',
                 prefixIcon:
-                    const Icon(
-                  Icons.my_location,
-                ),
-                filled: true,
-                fillColor:
-                    const Color(0xFF10243B),
+                    Icon(Icons.flag),
                 border:
-                    OutlineInputBorder(
-                  borderRadius:
-                      BorderRadius.circular(
-                    18,
-                  ),
-                  borderSide:
-                      BorderSide.none,
-                ),
+                    OutlineInputBorder(),
               ),
             ),
 
-            const SizedBox(
-              height: 18,
-            ),
-
-            // ==================================================
-            // DROP
-            // ==================================================
-
-            TextField(
-              controller:
-                  dropController,
-              textCapitalization:
-                  TextCapitalization.words,
-              decoration: InputDecoration(
-                labelText:
-                    'Drop Location',
-                hintText:
-                    'Enter destination',
-                prefixIcon:
-                    const Icon(
-                  Icons.location_on,
-                ),
-                filled: true,
-                fillColor:
-                    const Color(0xFF10243B),
-                border:
-                    OutlineInputBorder(
-                  borderRadius:
-                      BorderRadius.circular(
-                    18,
-                  ),
-                  borderSide:
-                      BorderSide.none,
-                ),
-              ),
-            ),
-
-            const SizedBox(
-              height: 15,
-            ),
-
-            // ==================================================
-            // CALCULATE DISTANCE BUTTON
-            // ==================================================
+            const SizedBox(height: 12),
 
             SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton.icon(
+              height: 50,
+              child: FilledButton.icon(
                 onPressed:
                     calculatingDistance
                         ? null
                         : calculateDistance,
                 icon: calculatingDistance
                     ? const SizedBox(
-                        width: 20,
-                        height: 20,
+                        height: 18,
+                        width: 18,
                         child:
                             CircularProgressIndicator(
                           strokeWidth: 2,
-                          color:
-                              Colors.white,
                         ),
                       )
                     : const Icon(
@@ -1366,524 +1000,202 @@ class _BookingPageState extends State<BookingPage> {
                       ),
                 label: Text(
                   calculatingDistance
-                      ? 'CALCULATING DISTANCE...'
+                      ? 'CALCULATING...'
                       : 'CALCULATE DISTANCE',
                 ),
               ),
             ),
 
-            const SizedBox(
-              height: 20,
-            ),
+            const SizedBox(height: 18),
 
-            // ==================================================
-            // DISTANCE RESULT
-            // ==================================================
-
-            Container(
-              width: double.infinity,
-              padding:
-                  const EdgeInsets.all(18),
-              decoration:
-                  BoxDecoration(
-                color:
-                    const Color(0xFF10243B),
-                borderRadius:
-                    BorderRadius.circular(
-                  18,
-                ),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons
-                        .directions_car,
-                    color:
-                        Color(0xFF1687FF),
-                    size: 35,
-                  ),
-                  const SizedBox(
-                    width: 14,
-                  ),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment
-                              .start,
-                      children: [
-                        const Text(
-                          'Actual Distance',
-                          style: TextStyle(
-                            color:
-                                Colors.white70,
-                            fontSize: 13,
-                          ),
+            if (calculatedDistance > 0)
+              Card(
+                child: Padding(
+                  padding:
+                      const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      Text(
+                        '${calculatedDistance.toStringAsFixed(1)} KM',
+                        style:
+                            const TextStyle(
+                          fontSize: 30,
+                          fontWeight:
+                              FontWeight.bold,
                         ),
-                        const SizedBox(
-                          height: 4,
-                        ),
+                      ),
+                      if (durationMinutes !=
+                          null)
                         Text(
-                          enteredKm > 0
-                              ? '${enteredKm.toStringAsFixed(1)} KM'
-                              : 'Calculate distance',
-                          style:
-                              const TextStyle(
-                            fontSize: 22,
-                            fontWeight:
-                                FontWeight.bold,
-                          ),
+                          'Approx. ${durationMinutes!} minutes',
                         ),
-                      ],
-                    ),
+                    ],
                   ),
-                  if (durationMinutes !=
-                      null)
-                    Text(
-                      '$durationMinutes min',
-                      style:
-                          const TextStyle(
-                        color:
-                            Colors.white70,
-                      ),
-                    ),
-                ],
+                ),
+              ),
+
+            const SizedBox(height: 15),
+
+            const Text(
+              'Vehicle Type',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
               ),
             ),
 
-            const SizedBox(
-              height: 20,
+            RadioListTile<String>(
+              value: 'AC',
+              groupValue: vehicleType,
+              onChanged: (value) {
+                if (value == null) return;
+
+                setState(() {
+                  vehicleType = value;
+                });
+              },
+              title:
+                  const Text('AC - ₹20/KM'),
             ),
 
-            // ==================================================
-            // VEHICLE TYPE
-            // ==================================================
+            RadioListTile<String>(
+              value: 'Non-AC',
+              groupValue: vehicleType,
+              onChanged: (value) {
+                if (value == null) return;
 
-            const Align(
-              alignment:
-                  Alignment.centerLeft,
-              child: Text(
-                'Select Vehicle Type',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight:
-                      FontWeight.bold,
-                ),
-              ),
+                setState(() {
+                  vehicleType = value;
+                });
+              },
+              title:
+                  const Text('Non-AC - ₹17/KM'),
             ),
-
-            const SizedBox(
-              height: 10,
-            ),
-
-            Row(
-              children: [
-                Expanded(
-                  child: ChoiceChip(
-                    label:
-                        const SizedBox(
-                      width:
-                          double.infinity,
-                      child: Center(
-                        child: Text(
-                          'AC • ₹20/km',
-                          style:
-                              TextStyle(
-                            fontWeight:
-                                FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                    selected:
-                        vehicleType ==
-                            'AC',
-                    onSelected: (_) {
-                      setState(() {
-                        vehicleType =
-                            'AC';
-                      });
-                    },
-                  ),
-                ),
-
-                const SizedBox(
-                  width: 12,
-                ),
-
-                Expanded(
-                  child: ChoiceChip(
-                    label:
-                        const SizedBox(
-                      width:
-                          double.infinity,
-                      child: Center(
-                        child: Text(
-                          'Non-AC • ₹17/km',
-                          style:
-                              TextStyle(
-                            fontWeight:
-                                FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                    selected:
-                        vehicleType ==
-                            'Non-AC',
-                    onSelected: (_) {
-                      setState(() {
-                        vehicleType =
-                            'Non-AC';
-                      });
-                    },
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(
-              height: 20,
-            ),
-
-            // ==================================================
-            // DISTANCE - READ ONLY
-            // ==================================================
 
             TextField(
-              controller:
-                  distanceController,
-              readOnly: true,
-              decoration:
-                  InputDecoration(
-                labelText:
-                    'Actual Distance (KM)',
-                suffixText: 'KM',
-                prefixIcon:
-                    const Icon(
-                  Icons.route,
-                ),
-                filled: true,
-                fillColor:
-                    const Color(0xFF10243B),
-                border:
-                    OutlineInputBorder(
-                  borderRadius:
-                      BorderRadius.circular(
-                    18,
-                  ),
-                  borderSide:
-                      BorderSide.none,
-                ),
-              ),
-            ),
-
-            const SizedBox(
-              height: 8,
-            ),
-
-            const Align(
-              alignment:
-                  Alignment.centerLeft,
-              child: Text(
-                'Billing is based on actual distance. No minimum KM.',
-                style: TextStyle(
-                  color:
-                      Colors.greenAccent,
-                  fontSize: 13,
-                ),
-              ),
-            ),
-
-            const SizedBox(
-              height: 18,
-            ),
-
-            // ==================================================
-            // HOLDING
-            // ==================================================
-
-            TextField(
-              controller:
-                  holdingController,
+              controller: holdingController,
               keyboardType:
-                  const TextInputType
-                      .numberWithOptions(
+                  const TextInputType.numberWithOptions(
                 decimal: true,
+              ),
+              decoration:
+                  const InputDecoration(
+                labelText:
+                    'Holding Hours',
+                prefixIcon:
+                    Icon(Icons.access_time),
+                helperText:
+                    '₹100 per hour',
+                border:
+                    OutlineInputBorder(),
               ),
               onChanged: (_) {
                 setState(() {});
               },
-              decoration:
-                  InputDecoration(
-                labelText:
-                    'Holding Hours',
-                hintText:
-                    'Example: 2',
-                prefixIcon:
-                    const Icon(
-                  Icons.access_time,
-                ),
-                suffixText:
-                    '₹100/hour',
-                filled: true,
-                fillColor:
-                    const Color(0xFF10243B),
-                border:
-                    OutlineInputBorder(
-                  borderRadius:
-                      BorderRadius.circular(
-                    18,
-                  ),
-                  borderSide:
-                      BorderSide.none,
-                ),
-              ),
             ),
 
-            const SizedBox(
-              height: 18,
+            const SizedBox(height: 12),
+
+            ListTile(
+              leading:
+                  const Icon(Icons.calendar_month),
+              title:
+                  const Text('Travel Date'),
+              subtitle: Text(
+                '${travelDate.day}/${travelDate.month}/${travelDate.year}',
+              ),
+              trailing:
+                  const Icon(Icons.edit),
+              onTap: selectDate,
             ),
 
-            // ==================================================
-            // DATE
-            // ==================================================
+            const Divider(),
 
-            InkWell(
-              onTap:
-                  selectTravelDate,
-              borderRadius:
-                  BorderRadius.circular(
-                18,
-              ),
-              child:
-                  Container(
-                width:
-                    double.infinity,
+            Card(
+              child: Padding(
                 padding:
-                    const EdgeInsets.all(
-                  18,
-                ),
-                decoration:
-                    BoxDecoration(
-                  color:
-                      const Color(
-                    0xFF10243B,
-                  ),
-                  borderRadius:
-                      BorderRadius.circular(
-                    18,
-                  ),
-                ),
-                child:
-                    Row(
+                    const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
                   children: [
-                    const Icon(
-                      Icons
-                          .calendar_month,
-                      color:
-                          Color(
-                        0xFF1687FF,
+                    const Text(
+                      'FARE SUMMARY',
+                      style:
+                          TextStyle(
+                        fontSize: 18,
+                        fontWeight:
+                            FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(
-                      width: 14,
+                    const SizedBox(height: 12),
+
+                    _FareRow(
+                      label:
+                          'Distance',
+                      value:
+                          '${chargeableKm.toStringAsFixed(1)} KM',
                     ),
-                    Expanded(
-                      child:
-                          Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment
-                                .start,
-                        children: [
-                          const Text(
-                            'Travel Date',
-                            style:
-                                TextStyle(
-                              fontSize:
-                                  13,
-                              color: Colors
-                                  .white70,
-                            ),
-                          ),
-                          const SizedBox(
-                            height: 5,
-                          ),
-                          Text(
-                            formatDate(
-                              travelDate,
-                            ),
-                            style:
-                                const TextStyle(
-                              fontSize:
-                                  17,
-                              fontWeight:
-                                  FontWeight
-                                      .bold,
-                            ),
-                          ),
-                        ],
-                      ),
+
+                    _FareRow(
+                      label:
+                          'Distance Fare',
+                      value:
+                          '₹${distanceFare.toStringAsFixed(0)}',
                     ),
-                    const Icon(
-                      Icons
-                          .arrow_forward_ios,
-                      size: 17,
+
+                    _FareRow(
+                      label:
+                          'Holding',
+                      value:
+                          '₹${holdingFare.toStringAsFixed(0)}',
+                    ),
+
+                    const Divider(),
+
+                    _FareRow(
+                      label: 'TOTAL',
+                      value:
+                          '₹${totalFare.toStringAsFixed(0)}',
+                      bold: true,
+                    ),
+
+                    _FareRow(
+                      label:
+                          'Advance 30%',
+                      value:
+                          '₹${advanceAmount.toStringAsFixed(0)}',
+                    ),
+
+                    _FareRow(
+                      label:
+                          'Balance 70%',
+                      value:
+                          '₹${balanceAmount.toStringAsFixed(0)}',
                     ),
                   ],
                 ),
               ),
             ),
 
-            const SizedBox(
-              height: 25,
-            ),
-
-            // ==================================================
-            // FARE SUMMARY
-            // ==================================================
-
-            Container(
-              width:
-                  double.infinity,
-              padding:
-                  const EdgeInsets.all(
-                20,
-              ),
-              decoration:
-                  BoxDecoration(
-                gradient:
-                    const LinearGradient(
-                  colors: [
-                    Color(
-                      0xFF10243B,
-                    ),
-                    Color(
-                      0xFF0B2942,
-                    ),
-                  ],
-                ),
-                borderRadius:
-                    BorderRadius.circular(
-                  22,
-                ),
-              ),
-              child:
-                  Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment
-                        .start,
-                children: [
-                  const Text(
-                    'FARE SUMMARY',
-                    style:
-                        TextStyle(
-                      fontSize: 17,
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
-                  ),
-
-                  const SizedBox(
-                    height: 15,
-                  ),
-
-                  fareRow(
-                    'Actual Distance',
-                    '${chargeableKm.toStringAsFixed(1)} km',
-                  ),
-
-                  fareRow(
-                    'Rate',
-                    '₹${rate.toStringAsFixed(0)}/km',
-                  ),
-
-                  fareRow(
-                    'Distance Fare',
-                    '₹${distanceFare.toStringAsFixed(2)}',
-                  ),
-
-                  fareRow(
-                    'Holding',
-                    '₹${holdingFare.toStringAsFixed(2)}',
-                  ),
-
-                  const Divider(
-                    height: 25,
-                  ),
-
-                  fareRow(
-                    'TOTAL',
-                    '₹${totalFare.toStringAsFixed(2)}',
-                    bold: true,
-                  ),
-
-                  const SizedBox(
-                    height: 8,
-                  ),
-
-                  fareRow(
-                    'Advance • 30%',
-                    '₹${advanceAmount.toStringAsFixed(2)}',
-                  ),
-
-                  fareRow(
-                    'Balance • 70%',
-                    '₹${balanceAmount.toStringAsFixed(2)}',
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(
-              height: 28,
-            ),
-
-            // ==================================================
-            // CONFIRM
-            // ==================================================
+            const SizedBox(height: 15),
 
             SizedBox(
-              width:
-                  double.infinity,
-              height: 58,
-              child:
-                  ElevatedButton(
+              height: 54,
+              child: FilledButton(
                 onPressed:
-                    loading ||
-                            calculatingDistance
+                    booking
                         ? null
-                        : confirmBooking,
-                child: loading
-                    ? const CircularProgressIndicator(
-                        color:
-                            Colors.white,
-                      )
+                        : createBooking,
+                child: booking
+                    ? const CircularProgressIndicator()
                     : const Text(
                         'CONFIRM BOOKING',
                         style:
                             TextStyle(
-                          fontSize:
-                              17,
                           fontWeight:
-                              FontWeight
-                                  .bold,
+                              FontWeight.bold,
                         ),
                       ),
-              ),
-            ),
-
-            const SizedBox(
-              height: 15,
-            ),
-
-            Text(
-              '30% advance payment will be collected online.',
-              textAlign:
-                  TextAlign.center,
-              style: TextStyle(
-                color: Colors.white
-                    .withOpacity(.55),
-                fontSize: 13,
               ),
             ),
           ],
@@ -1891,41 +1203,36 @@ class _BookingPageState extends State<BookingPage> {
       ),
     );
   }
+}
 
-  Widget fareRow(
-    String title,
-    String value, {
-    bool bold = false,
-  }) {
+class _FareRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool bold;
+
+  const _FareRow({
+    required this.label,
+    required this.value,
+    this.bold = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final style = TextStyle(
+      fontWeight:
+          bold ? FontWeight.bold : FontWeight.normal,
+      fontSize: bold ? 17 : 14,
+    );
+
     return Padding(
       padding:
-          const EdgeInsets.symmetric(
-        vertical: 5,
-      ),
+          const EdgeInsets.symmetric(vertical: 4),
       child: Row(
+        mainAxisAlignment:
+            MainAxisAlignment.spaceBetween,
         children: [
-          Expanded(
-            child: Text(
-              title,
-              style: TextStyle(
-                fontWeight: bold
-                    ? FontWeight.bold
-                    : FontWeight.normal,
-                fontSize:
-                    bold ? 17 : 14,
-              ),
-            ),
-          ),
-          Text(
-            value,
-            style: TextStyle(
-              fontWeight: bold
-                  ? FontWeight.bold
-                  : FontWeight.w600,
-              fontSize:
-                  bold ? 19 : 14,
-            ),
-          ),
+          Text(label, style: style),
+          Text(value, style: style),
         ],
       ),
     );
@@ -1944,125 +1251,87 @@ class MyBookingsPage extends StatelessWidget {
     final user =
         FirebaseAuth.instance.currentUser;
 
+    if (user == null) {
+      return const Scaffold(
+        body: Center(
+          child: Text('Please login'),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
-        title:
-            const Text('My Bookings'),
-        centerTitle: true,
+        title: const Text('My Bookings'),
       ),
-      body: user == null
-          ? const Center(
-              child: Text(
-                'Please login first',
-              ),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('bookings')
+            .where(
+              'userId',
+              isEqualTo: user.uid,
             )
-          : StreamBuilder<
-              QuerySnapshot>(
-              stream:
-                  FirebaseFirestore
-                      .instance
-                      .collection(
-                        'bookings',
-                      )
-                      .where(
-                        'userId',
-                        isEqualTo:
-                            user.uid,
-                      )
-                      .snapshots(),
-              builder:
-                  (context, snapshot) {
-                if (snapshot
-                        .connectionState ==
-                    ConnectionState
-                        .waiting) {
-                  return const Center(
-                    child:
-                        CircularProgressIndicator(),
-                  );
-                }
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(
+              child: Text(
+                'Error: ${snapshot.error}',
+              ),
+            );
+          }
 
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Text(
-                      'Error: ${snapshot.error}',
-                    ),
-                  );
-                }
+          if (!snapshot.hasData) {
+            return const Center(
+              child:
+                  CircularProgressIndicator(),
+            );
+          }
 
-                final docs =
-                    snapshot.data
-                            ?.docs ??
-                        [];
+          final docs =
+              snapshot.data!.docs.toList();
 
-                if (docs.isEmpty) {
-                  return const Center(
-                    child: Text(
-                      'No bookings yet',
-                    ),
-                  );
-                }
+          docs.sort((a, b) {
+            final aData =
+                a.data() as Map<String, dynamic>;
+            final bData =
+                b.data() as Map<String, dynamic>;
 
-                final bookings =
-                    [...docs];
+            final aTime =
+                aData['createdAt']
+                    as Timestamp?;
+            final bTime =
+                bData['createdAt']
+                    as Timestamp?;
 
-                bookings.sort(
-                  (a, b) {
-                    final aData =
-                        a.data()
-                            as Map<String,
-                                dynamic>;
+            return (bTime?.millisecondsSinceEpoch ??
+                    0)
+                .compareTo(
+              aTime?.millisecondsSinceEpoch ??
+                  0,
+            );
+          });
 
-                    final bData =
-                        b.data()
-                            as Map<String,
-                                dynamic>;
+          if (docs.isEmpty) {
+            return const Center(
+              child: Text(
+                'No bookings yet',
+              ),
+            );
+          }
 
-                    final aTime =
-                        aData[
-                                'createdAt']
-                            as Timestamp?;
-
-                    final bTime =
-                        bData[
-                                'createdAt']
-                            as Timestamp?;
-
-                    return (bTime
-                                ?.millisecondsSinceEpoch ??
-                            0)
-                        .compareTo(
-                      aTime?.millisecondsSinceEpoch ??
-                          0,
-                    );
-                  },
-                );
-
-                return ListView.builder(
-                  padding:
-                      const EdgeInsets.all(
-                    20,
-                  ),
-                  itemCount:
-                      bookings.length,
-                  itemBuilder:
-                      (context, index) {
-                    final data =
-                        bookings[index]
-                                .data()
-                            as Map<String,
-                                dynamic>;
-
-                    return BookingCard(
-                      data: data,
-                      bookingId:
-                          bookings[index]
-                              .id,
-                    );
-                  },
-                );
-              },
-            ),
+          return ListView.builder(
+            padding:
+                const EdgeInsets.all(12),
+            itemCount: docs.length,
+            itemBuilder:
+                (context, index) {
+              return BookingCard(
+                doc: docs[index],
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }
@@ -2072,304 +1341,121 @@ class MyBookingsPage extends StatelessWidget {
 // ============================================================
 
 class BookingCard extends StatelessWidget {
-  final Map<String, dynamic> data;
-  final String bookingId;
+  final QueryDocumentSnapshot doc;
 
   const BookingCard({
     super.key,
-    required this.data,
-    required this.bookingId,
+    required this.doc,
   });
-
-  String formatBookingDate() {
-    final value =
-        data['travelDate'];
-
-    if (value is Timestamp) {
-      final date =
-          value.toDate();
-
-      return '${date.day.toString().padLeft(2, '0')}/'
-          '${date.month.toString().padLeft(2, '0')}/'
-          '${date.year}';
-    }
-
-    return 'Not selected';
-  }
-
-  String money(dynamic value) {
-    final number =
-        value is num
-            ? value.toDouble()
-            : double.tryParse(
-                    '$value',
-                  ) ??
-                0;
-
-    return number
-        .toStringAsFixed(2);
-  }
 
   @override
   Widget build(BuildContext context) {
+    final data =
+        doc.data() as Map<String, dynamic>;
+
     final status =
-        data['status']
-                ?.toString() ??
-            'Pending';
+        data['status'] ?? 'Pending';
 
-    final paymentStatus =
-        data['paymentStatus']
-                ?.toString() ??
-            'Pending';
-
-    final distance =
-        data['distanceKm'];
-
-    final holding =
-        data['holdingHours'];
+    final liveTripId = doc.id;
 
     final total =
-        data['totalAmount'];
+        ((data['totalAmount'] ?? 0) as num)
+            .toDouble();
 
     final advance =
-        data['advanceAmount'];
+        ((data['advanceAmount'] ?? 0)
+                as num)
+            .toDouble();
 
-    final balance =
-        data['balanceAmount'];
+    return Card(
+      child: Padding(
+        padding:
+            const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.local_taxi,
+                  color: Colors.blue,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    data['vehicle'] ??
+                        'Maruti Ertiga',
+                    style:
+                        const TextStyle(
+                      fontSize: 17,
+                      fontWeight:
+                          FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Chip(
+                  label: Text(
+                    status.toString(),
+                  ),
+                ),
+              ],
+            ),
 
-    return Container(
-      margin:
-          const EdgeInsets.only(
-        bottom: 18,
-      ),
-      padding:
-          const EdgeInsets.all(22),
-      decoration:
-          BoxDecoration(
-        color:
-            const Color(0xFF0B2942),
-        borderRadius:
-            BorderRadius.circular(
-          24,
-        ),
-      ),
-      child:
-          Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.directions_car,
-                color:
-                    Color(0xFF1687FF),
-                size: 42,
-              ),
-              const SizedBox(
-                width: 12,
-              ),
-              const Expanded(
-                child: Text(
-                  'Maruti Ertiga',
-                  style:
-                      TextStyle(
-                    fontSize: 22,
-                    fontWeight:
-                        FontWeight.bold,
+            const SizedBox(height: 10),
+
+            Text(
+              '📍 ${data['pickup'] ?? ''}',
+            ),
+            Text(
+              '🏁 ${data['drop'] ?? ''}',
+            ),
+
+            const SizedBox(height: 8),
+
+            Text(
+              'Distance: ${data['distanceKm'] ?? 0} KM',
+            ),
+
+            Text(
+              'Total: ₹${total.toStringAsFixed(0)}',
+            ),
+
+            Text(
+              'Advance: ₹${advance.toStringAsFixed(0)}',
+            ),
+
+            if (status == 'Confirmed')
+              Padding(
+                padding:
+                    const EdgeInsets.only(
+                  top: 12,
+                ),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    icon: const Icon(
+                      Icons.location_on,
+                    ),
+                    label: const Text(
+                      'TRACK DRIVER',
+                    ),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              CustomerTrackingPage(
+                            bookingId:
+                                liveTripId,
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ),
               ),
-              StatusBadge(
-                status: status,
-              ),
-            ],
-          ),
-
-          const SizedBox(
-            height: 18,
-          ),
-
-          Text(
-            'Pickup: ${data['pickup'] ?? ''}',
-          ),
-
-          const SizedBox(
-            height: 10,
-          ),
-
-          Text(
-            'Drop: ${data['drop'] ?? ''}',
-          ),
-
-          const SizedBox(
-            height: 10,
-          ),
-
-          Text(
-            'Travel Date: ${formatBookingDate()}',
-          ),
-
-          const SizedBox(
-            height: 10,
-          ),
-
-          Text(
-            'Type: ${data['vehicleType'] ?? ''}',
-          ),
-
-          const SizedBox(
-            height: 10,
-          ),
-
-          Text(
-            'Actual Distance: '
-            '${distance ?? 0} km',
-          ),
-
-          const SizedBox(
-            height: 10,
-          ),
-
-          Text(
-            'Rate: '
-            '₹${data['ratePerKm'] ?? 0}/km',
-          ),
-
-          const SizedBox(
-            height: 10,
-          ),
-
-          Text(
-            'Holding: '
-            '${holding ?? 0} hour',
-          ),
-
-          const SizedBox(
-            height: 14,
-          ),
-
-          Text(
-            'Total: ₹${money(total)}',
-            style:
-                const TextStyle(
-              fontWeight:
-                  FontWeight.bold,
-              fontSize: 17,
-            ),
-          ),
-
-          const SizedBox(
-            height: 6,
-          ),
-
-          Text(
-            'Advance: ₹${money(advance)}',
-          ),
-
-          const SizedBox(
-            height: 6,
-          ),
-
-          Text(
-            'Balance: ₹${money(balance)}',
-          ),
-
-          const SizedBox(
-            height: 10,
-          ),
-
-          Text(
-            'Payment: $paymentStatus',
-            style: TextStyle(
-              color: paymentStatus ==
-                      'PAID'
-                  ? Colors.greenAccent
-                  : Colors.orangeAccent,
-              fontWeight:
-                  FontWeight.bold,
-            ),
-          ),
-
-          const SizedBox(
-            height: 12,
-          ),
-
-          Text(
-            '22 km/l • West Bengal',
-            style: TextStyle(
-              color: Colors.white
-                  .withOpacity(.65),
-            ),
-          ),
-
-          const SizedBox(
-            height: 12,
-          ),
-
-          Text(
-            'Booking ID: $bookingId',
-            style: TextStyle(
-              color: Colors.white
-                  .withOpacity(.45),
-              fontSize: 12,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ============================================================
-// STATUS BADGE
-// ============================================================
-
-class StatusBadge extends StatelessWidget {
-  final String status;
-
-  const StatusBadge({
-    super.key,
-    required this.status,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding:
-          const EdgeInsets.symmetric(
-        horizontal: 14,
-        vertical: 9,
-      ),
-      decoration:
-          BoxDecoration(
-        color: status ==
-                'Confirmed'
-            ? Colors.green
-                .withOpacity(.25)
-            : status ==
-                    'Rejected'
-                ? Colors.red
-                    .withOpacity(.25)
-                : Colors.orange
-                    .withOpacity(.25),
-        borderRadius:
-            BorderRadius.circular(
-          30,
-        ),
-      ),
-      child: Text(
-        status,
-        style: TextStyle(
-          color: status ==
-                  'Confirmed'
-              ? Colors.greenAccent
-              : status ==
-                      'Rejected'
-                  ? Colors.redAccent
-                  : Colors.orangeAccent,
-          fontWeight:
-              FontWeight.bold,
+          ],
         ),
       ),
     );
@@ -2383,122 +1469,33 @@ class StatusBadge extends StatelessWidget {
 class AdminPanel extends StatelessWidget {
   const AdminPanel({super.key});
 
-  static const String adminPhone =
-      '+16505551234';
-
-  bool get isAdmin {
-    final user =
-        FirebaseAuth.instance.currentUser;
-
-    return user?.phoneNumber ==
-        adminPhone;
-  }
-
-  Future<void> updateBooking(
-    BuildContext context,
-    String bookingId,
+  Future<void> updateStatus(
+    String id,
     String status,
   ) async {
-    try {
-      await FirebaseFirestore.instance
-          .collection('bookings')
-          .doc(bookingId)
-          .update({
-        'status': status,
-        'updatedAt':
-            FieldValue.serverTimestamp(),
-      });
-
-      if (!context.mounted) return;
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        SnackBar(
-          content:
-              Text('Booking $status'),
-        ),
-      );
-    } catch (e) {
-      if (!context.mounted) return;
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        SnackBar(
-          content:
-              Text('Update Error:\n$e'),
-        ),
-      );
-    }
-  }
-
-  String money(dynamic value) {
-    final number =
-        value is num
-            ? value.toDouble()
-            : double.tryParse(
-                    '$value',
-                  ) ??
-                0;
-
-    return number
-        .toStringAsFixed(2);
+    await FirebaseFirestore.instance
+        .collection('bookings')
+        .doc(id)
+        .update({
+      'status': status,
+      'updatedAt':
+          FieldValue.serverTimestamp(),
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!isAdmin) {
-      return Scaffold(
-        appBar: AppBar(
-          title:
-              const Text('Admin Panel'),
-        ),
-        body: const Center(
-          child: Text(
-            'Admin access denied',
-            style:
-                TextStyle(
-              fontSize: 20,
-              fontWeight:
-                  FontWeight.bold,
-            ),
-          ),
-        ),
-      );
-    }
-
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'HR RIDE ADMIN',
-          style:
-              TextStyle(
-            fontWeight:
-                FontWeight.bold,
-          ),
+          'Admin Panel',
         ),
-        centerTitle: true,
       ),
-      body: StreamBuilder<
-          QuerySnapshot>(
-        stream:
-            FirebaseFirestore
-                .instance
-                .collection(
-                  'bookings',
-                )
-                .snapshots(),
-        builder:
-            (context, snapshot) {
-          if (snapshot
-                  .connectionState ==
-              ConnectionState
-                  .waiting) {
-            return const Center(
-              child:
-                  CircularProgressIndicator(),
-            );
-          }
-
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('bookings')
+            .snapshots(),
+        builder: (context, snapshot) {
           if (snapshot.hasError) {
             return Center(
               child: Text(
@@ -2507,328 +1504,790 @@ class AdminPanel extends StatelessWidget {
             );
           }
 
+          if (!snapshot.hasData) {
+            return const Center(
+              child:
+                  CircularProgressIndicator(),
+            );
+          }
+
           final docs =
-              snapshot.data?.docs ??
-                  [];
+              snapshot.data!.docs.toList();
+
+          docs.sort((a, b) {
+            final aData =
+                a.data() as Map<String, dynamic>;
+            final bData =
+                b.data() as Map<String, dynamic>;
+
+            final aTime =
+                aData['createdAt']
+                    as Timestamp?;
+            final bTime =
+                bData['createdAt']
+                    as Timestamp?;
+
+            return (bTime?.millisecondsSinceEpoch ??
+                    0)
+                .compareTo(
+              aTime?.millisecondsSinceEpoch ??
+                  0,
+            );
+          });
 
           if (docs.isEmpty) {
             return const Center(
               child: Text(
-                'No bookings available',
-                style:
-                    TextStyle(
-                  fontSize: 18,
-                ),
+                'No bookings',
               ),
             );
           }
 
           return ListView.builder(
             padding:
-                const EdgeInsets.all(
-              18,
-            ),
-            itemCount:
-                docs.length,
+                const EdgeInsets.all(12),
+            itemCount: docs.length,
             itemBuilder:
                 (context, index) {
-              final doc =
-                  docs[index];
+              final doc = docs[index];
 
               final data =
                   doc.data()
-                      as Map<String,
-                          dynamic>;
+                      as Map<String, dynamic>;
 
               final status =
-                  data['status']
-                          ?.toString() ??
+                  data['status'] ??
                       'Pending';
 
-              final customerName =
-                  data['userName']
-                          ?.toString() ??
-                      '';
-
-              final customerEmail =
-                  data['userEmail']
-                          ?.toString() ??
-                      '';
-
-              final customerPhone =
-                  data['userPhone']
-                          ?.toString() ??
-                      '';
-
-              String customer;
-
-              if (customerName
-                  .isNotEmpty) {
-                customer =
-                    '$customerName\n'
-                    '$customerEmail';
-              } else if (customerEmail
-                  .isNotEmpty) {
-                customer =
-                    customerEmail;
-              } else {
-                customer =
-                    customerPhone;
-              }
-
-              final total =
-                  data['totalAmount'];
-
-              final advance =
-                  data['advanceAmount'];
-
-              final balance =
-                  data['balanceAmount'];
-
-              final paymentStatus =
-                  data['paymentStatus']
-                          ?.toString() ??
-                      'Pending';
-
-              return Container(
-                margin:
-                    const EdgeInsets.only(
-                  bottom: 18,
-                ),
-                padding:
-                    const EdgeInsets.all(
-                  20,
-                ),
-                decoration:
-                    BoxDecoration(
-                  color:
-                      const Color(
-                    0xFF10243B,
-                  ),
-                  borderRadius:
-                      BorderRadius.circular(
-                    22,
-                  ),
-                ),
-                child:
-                    Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment
-                          .start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons
-                              .directions_car,
-                          color:
-                              Color(
-                            0xFF1687FF,
-                          ),
-                          size: 40,
-                        ),
-                        const SizedBox(
-                          width: 12,
-                        ),
-                        const Expanded(
-                          child: Text(
-                            'Maruti Ertiga',
-                            style:
-                                TextStyle(
-                              fontSize:
-                                  21,
-                              fontWeight:
-                                  FontWeight
-                                      .bold,
-                            ),
-                          ),
-                        ),
-                        StatusBadge(
-                          status:
-                              status,
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(
-                      height: 18,
-                    ),
-
-                    Text(
-                      'Pickup: '
-                      '${data['pickup'] ?? ''}',
-                    ),
-
-                    const SizedBox(
-                      height: 10,
-                    ),
-
-                    Text(
-                      'Drop: '
-                      '${data['drop'] ?? ''}',
-                    ),
-
-                    const SizedBox(
-                      height: 10,
-                    ),
-
-                    Text(
-                      'Customer:\n$customer',
-                      style:
-                          TextStyle(
-                        color: Colors
-                            .white
-                            .withOpacity(
-                          .65,
+              return Card(
+                child: Padding(
+                  padding:
+                      const EdgeInsets.all(15),
+                  child: Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        data['userName']
+                                    ?.toString()
+                                    .isNotEmpty ==
+                                true
+                            ? data['userName']
+                                .toString()
+                            : data['userEmail']
+                                    ?.toString()
+                                    .isNotEmpty ==
+                                true
+                                ? data['userEmail']
+                                    .toString()
+                                : data['userPhone']
+                                        ?.toString()
+                                        .isNotEmpty ==
+                                    true
+                                    ? data['userPhone']
+                                        .toString()
+                                    : 'Customer',
+                        style:
+                            const TextStyle(
+                          fontWeight:
+                              FontWeight.bold,
+                          fontSize: 18,
                         ),
                       ),
-                    ),
 
-                    const SizedBox(
-                      height: 12,
-                    ),
-
-                    Text(
-                      'Vehicle Type: '
-                      '${data['vehicleType'] ?? ''}',
-                    ),
-
-                    const SizedBox(
-                      height: 8,
-                    ),
-
-                    Text(
-                      'Actual Distance: '
-                      '${data['distanceKm'] ?? 0} km',
-                    ),
-
-                    const SizedBox(
-                      height: 8,
-                    ),
-
-                    Text(
-                      'Rate: '
-                      '₹${data['ratePerKm'] ?? 0}/km',
-                    ),
-
-                    const SizedBox(
-                      height: 8,
-                    ),
-
-                    Text(
-                      'Holding: '
-                      '${data['holdingHours'] ?? 0} hour',
-                    ),
-
-                    const SizedBox(
-                      height: 12,
-                    ),
-
-                    Text(
-                      'Total: '
-                      '₹${money(total)}',
-                      style:
-                          const TextStyle(
-                        fontWeight:
-                            FontWeight
-                                .bold,
-                        fontSize: 16,
+                      const SizedBox(
+                        height: 8,
                       ),
-                    ),
 
-                    const SizedBox(
-                      height: 6,
-                    ),
-
-                    Text(
-                      'Advance: '
-                      '₹${money(advance)}',
-                    ),
-
-                    const SizedBox(
-                      height: 6,
-                    ),
-
-                    Text(
-                      'Balance: '
-                      '₹${money(balance)}',
-                    ),
-
-                    const SizedBox(
-                      height: 8,
-                    ),
-
-                    Text(
-                      'Payment: '
-                      '$paymentStatus',
-                      style: TextStyle(
-                        color:
-                            paymentStatus ==
-                                    'PAID'
-                                ? Colors
-                                    .greenAccent
-                                : Colors
-                                    .orangeAccent,
-                        fontWeight:
-                            FontWeight
-                                .bold,
+                      Text(
+                        'Pickup: ${data['pickup'] ?? ''}',
                       ),
-                    ),
 
-                    const SizedBox(
-                      height: 18,
-                    ),
+                      Text(
+                        'Drop: ${data['drop'] ?? ''}',
+                      ),
 
-                    if (status ==
-                        'Pending')
-                      Row(
-                        children: [
-                          Expanded(
-                            child:
-                                ElevatedButton
-                                    .icon(
-                              onPressed:
-                                  () {
-                                updateBooking(
-                                  context,
+                      Text(
+                        'Vehicle: ${data['vehicle'] ?? 'Maruti Ertiga'}',
+                      ),
+
+                      Text(
+                        'Type: ${data['vehicleType'] ?? 'AC'}',
+                      ),
+
+                      Text(
+                        'Distance: ${data['distanceKm'] ?? 0} KM',
+                      ),
+
+                      Text(
+                        'Total: ₹${data['totalAmount'] ?? 0}',
+                      ),
+
+                      Text(
+                        'Advance: ₹${data['advanceAmount'] ?? 0}',
+                      ),
+
+                      Text(
+                        'Payment: ${data['paymentStatus'] ?? 'Pending'}',
+                      ),
+
+                      Text(
+                        'Status: $status',
+                      ),
+
+                      const SizedBox(
+                        height: 12,
+                      ),
+
+                      if (status == 'Pending')
+                        Row(
+                          children: [
+                            Expanded(
+                              child:
+                                  FilledButton(
+                                onPressed: () =>
+                                    updateStatus(
                                   doc.id,
                                   'Confirmed',
-                                );
-                              },
-                              icon:
-                                  const Icon(
-                                Icons.check,
-                              ),
-                              label:
-                                  const Text(
-                                'ACCEPT',
+                                ),
+                                child:
+                                    const Text(
+                                  'ACCEPT',
+                                ),
                               ),
                             ),
-                          ),
-
-                          const SizedBox(
-                            width: 12,
-                          ),
-
-                          Expanded(
-                            child:
-                                OutlinedButton
-                                    .icon(
-                              onPressed:
-                                  () {
-                                updateBooking(
-                                  context,
+                            const SizedBox(
+                              width: 10,
+                            ),
+                            Expanded(
+                              child:
+                                  OutlinedButton(
+                                onPressed: () =>
+                                    updateStatus(
                                   doc.id,
                                   'Rejected',
-                                );
-                              },
-                              icon:
-                                  const Icon(
-                                Icons.close,
+                                ),
+                                child:
+                                    const Text(
+                                  'REJECT',
+                                ),
                               ),
-                              label:
-                                  const Text(
-                                'REJECT',
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ============================================================
+// DRIVER MODE
+// ============================================================
+
+class DriverModePage extends StatefulWidget {
+  const DriverModePage({super.key});
+
+  @override
+  State<DriverModePage> createState() =>
+      _DriverModePageState();
+}
+
+class _DriverModePageState
+    extends State<DriverModePage> {
+  final MapController mapController =
+      MapController();
+
+  StreamSubscription<Position>?
+      positionSubscription;
+
+  Position? currentPosition;
+
+  String? activeBookingId;
+
+  bool online = false;
+  bool starting = false;
+
+  double liveDistanceKm = 0;
+
+  Position? previousPosition;
+
+  DateTime? lastFirestoreUpdate;
+
+  @override
+  void initState() {
+    super.initState();
+    checkLocationPermission();
+  }
+
+  @override
+  void dispose() {
+    positionSubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<bool> checkLocationPermission() async {
+    bool enabled =
+        await Geolocator.isLocationServiceEnabled();
+
+    if (!enabled) {
+      if (mounted) {
+        showMessage(
+          'Please turn ON Location/GPS',
+        );
+      }
+      return false;
+    }
+
+    LocationPermission permission =
+        await Geolocator.checkPermission();
+
+    if (permission ==
+        LocationPermission.denied) {
+      permission =
+          await Geolocator.requestPermission();
+    }
+
+    if (permission ==
+            LocationPermission.denied ||
+        permission ==
+            LocationPermission.deniedForever) {
+      if (mounted) {
+        showMessage(
+          'Location permission is required.',
+        );
+      }
+      return false;
+    }
+
+    return true;
+  }
+
+  Future<void> startDriverMode() async {
+    if (online) return;
+
+    final allowed =
+        await checkLocationPermission();
+
+    if (!allowed) return;
+
+    setState(() {
+      starting = true;
+    });
+
+    try {
+      final position =
+          await Geolocator.getCurrentPosition(
+        locationSettings:
+            const LocationSettings(
+          accuracy:
+              LocationAccuracy.high,
+        ),
+      );
+
+      final user =
+          FirebaseAuth.instance.currentUser;
+
+      if (user == null) {
+        throw Exception(
+          'Driver not logged in',
+        );
+      }
+
+      currentPosition = position;
+
+      await FirebaseFirestore.instance
+          .collection('driverLocations')
+          .doc(user.uid)
+          .set({
+        'driverUid': user.uid,
+        'latitude': position.latitude,
+        'longitude': position.longitude,
+        'heading': position.heading,
+        'speed': position.speed,
+        'online': true,
+        'updatedAt':
+            FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      positionSubscription =
+          Geolocator.getPositionStream(
+        locationSettings:
+            const LocationSettings(
+          accuracy:
+              LocationAccuracy.high,
+          distanceFilter: 5,
+        ),
+      ).listen(
+        onPositionChanged,
+      );
+
+      if (mounted) {
+        setState(() {
+          online = true;
+        });
+      }
+
+      mapController.move(
+        LatLng(
+          position.latitude,
+          position.longitude,
+        ),
+        15,
+      );
+    } catch (e) {
+      showMessage(
+        'Driver Mode Error: $e',
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          starting = false;
+        });
+      }
+    }
+  }
+
+  Future<void> onPositionChanged(
+    Position position,
+  ) async {
+    if (!mounted) return;
+
+    setState(() {
+      currentPosition = position;
+    });
+
+    if (previousPosition != null &&
+        activeBookingId != null) {
+      final meters =
+          Geolocator.distanceBetween(
+        previousPosition!.latitude,
+        previousPosition!.longitude,
+        position.latitude,
+        position.longitude,
+      );
+
+      if (meters > 1 &&
+          meters < 1000) {
+        liveDistanceKm +=
+            meters / 1000;
+      }
+    }
+
+    if (activeBookingId != null) {
+      previousPosition = position;
+    }
+
+    mapController.move(
+      LatLng(
+        position.latitude,
+        position.longitude,
+      ),
+      mapController.camera.zoom,
+    );
+
+    final now = DateTime.now();
+
+    if (lastFirestoreUpdate == null ||
+        now.difference(
+              lastFirestoreUpdate!,
+            ) >=
+            const Duration(seconds: 3)) {
+      lastFirestoreUpdate = now;
+
+      await updateDriverLocation(
+        position,
+      );
+    }
+  }
+
+  Future<void> updateDriverLocation(
+    Position position,
+  ) async {
+    final user =
+        FirebaseAuth.instance.currentUser;
+
+    if (user == null) return;
+
+    await FirebaseFirestore.instance
+        .collection('driverLocations')
+        .doc(user.uid)
+        .set({
+      'driverUid': user.uid,
+      'latitude': position.latitude,
+      'longitude': position.longitude,
+      'heading': position.heading,
+      'speed': position.speed,
+      'online': online,
+      'activeBookingId':
+          activeBookingId,
+      'updatedAt':
+          FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    if (activeBookingId != null) {
+      await FirebaseFirestore.instance
+          .collection('liveTrips')
+          .doc(activeBookingId)
+          .set({
+        'bookingId':
+            activeBookingId,
+        'driverUid': user.uid,
+        'latitude':
+            position.latitude,
+        'longitude':
+            position.longitude,
+        'heading':
+            position.heading,
+        'speed':
+            position.speed,
+        'liveDistanceKm':
+            liveDistanceKm,
+        'status': 'started',
+        'updatedAt':
+            FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+  }
+
+  Future<void> startTrip(
+    String bookingId,
+  ) async {
+    if (!online) {
+      await startDriverMode();
+
+      if (!online) return;
+    }
+
+    final user =
+        FirebaseAuth.instance.currentUser;
+
+    if (user == null) return;
+
+    final bookingSnapshot =
+        await FirebaseFirestore.instance
+            .collection('bookings')
+            .doc(bookingId)
+            .get();
+
+    final bookingData =
+        bookingSnapshot.data();
+
+    if (bookingData == null) {
+      showMessage(
+        'Booking not found',
+      );
+      return;
+    }
+
+    final position =
+        currentPosition ??
+            await Geolocator
+                .getCurrentPosition();
+
+    setState(() {
+      activeBookingId = bookingId;
+      liveDistanceKm = 0;
+      previousPosition = position;
+    });
+
+    await FirebaseFirestore.instance
+        .collection('liveTrips')
+        .doc(bookingId)
+        .set({
+      'bookingId': bookingId,
+      'driverUid': user.uid,
+      'pickup':
+          bookingData['pickup'] ?? '',
+      'drop':
+          bookingData['drop'] ?? '',
+      'vehicle':
+          bookingData['vehicle'] ??
+              'Maruti Ertiga',
+      'vehicleType':
+          bookingData['vehicleType'] ??
+              'AC',
+      'ratePerKm':
+          bookingData['ratePerKm'] ??
+              acRate,
+      'holdingHours':
+          bookingData['holdingHours'] ??
+              0,
+      'holdingRate':
+          holdingRate,
+      'latitude':
+          position.latitude,
+      'longitude':
+          position.longitude,
+      'heading':
+          position.heading,
+      'speed':
+          position.speed,
+      'liveDistanceKm': 0,
+      'status': 'started',
+      'startedAt':
+          FieldValue.serverTimestamp(),
+      'updatedAt':
+          FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    await FirebaseFirestore.instance
+        .collection('bookings')
+        .doc(bookingId)
+        .update({
+      'status': 'Trip Started',
+      'tripStartedAt':
+          FieldValue.serverTimestamp(),
+    });
+
+    showMessage(
+      'TRIP STARTED 🚕',
+    );
+  }
+
+  Future<void> endTrip() async {
+    final bookingId =
+        activeBookingId;
+
+    if (bookingId == null) return;
+
+    final tripRef =
+        FirebaseFirestore.instance
+            .collection('liveTrips')
+            .doc(bookingId);
+
+    final tripSnapshot =
+        await tripRef.get();
+
+    final data =
+        tripSnapshot.data();
+
+    final rate =
+        ((data?['ratePerKm'] ??
+                    acRate)
+                as num)
+            .toDouble();
+
+    final holdingHours =
+        ((data?['holdingHours'] ??
+                    0)
+                as num)
+            .toDouble();
+
+    final distanceFare =
+        liveDistanceKm * rate;
+
+    final holdingFare =
+        holdingHours * holdingRate;
+
+    final total =
+        distanceFare +
+            holdingFare;
+
+    final advance =
+        total * 0.30;
+
+    final balance =
+        total - advance;
+
+    await tripRef.update({
+      'liveDistanceKm':
+          liveDistanceKm,
+      'distanceFare':
+          distanceFare,
+      'holdingFare':
+          holdingFare,
+      'totalAmount':
+          total,
+      'advanceAmount':
+          advance,
+      'balanceAmount':
+          balance,
+      'status': 'completed',
+      'endedAt':
+          FieldValue.serverTimestamp(),
+      'updatedAt':
+          FieldValue.serverTimestamp(),
+    });
+
+    await FirebaseFirestore.instance
+        .collection('bookings')
+        .doc(bookingId)
+        .update({
+      'status': 'Completed',
+      'finalDistanceKm':
+          liveDistanceKm,
+      'finalDistanceFare':
+          distanceFare,
+      'finalHoldingFare':
+          holdingFare,
+      'finalTotalAmount':
+          total,
+      'finalAdvanceAmount':
+          advance,
+      'finalBalanceAmount':
+          balance,
+      'tripEndedAt':
+          FieldValue.serverTimestamp(),
+    });
+
+    setState(() {
+      activeBookingId = null;
+      liveDistanceKm = 0;
+      previousPosition = null;
+    });
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text(
+          'Trip Completed',
+        ),
+        content: Text(
+          'Final Distance: '
+          '${liveDistanceKm.toStringAsFixed(1)} KM\n\n'
+          'Distance Fare: '
+          '₹${distanceFare.toStringAsFixed(0)}\n'
+          'Holding: '
+          '₹${holdingFare.toStringAsFixed(0)}\n\n'
+          'Total: '
+          '₹${total.toStringAsFixed(0)}\n'
+          'Advance 30%: '
+          '₹${advance.toStringAsFixed(0)}\n'
+          'Balance 70%: '
+          '₹${balance.toStringAsFixed(0)}',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> stopDriverMode() async {
+    await positionSubscription?.cancel();
+    positionSubscription = null;
+
+    final user =
+        FirebaseAuth.instance.currentUser;
+
+    if (user != null) {
+      await FirebaseFirestore.instance
+          .collection('driverLocations')
+          .doc(user.uid)
+          .set({
+        'online': false,
+        'updatedAt':
+            FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+
+    if (mounted) {
+      setState(() {
+        online = false;
+      });
+    }
+  }
+
+  double tripBill(
+    Map<String, dynamic> booking,
+  ) {
+    final rate =
+        ((booking['ratePerKm'] ??
+                    acRate)
+                as num)
+            .toDouble();
+
+    final holding =
+        ((booking['holdingHours'] ??
+                    0)
+                as num)
+            .toDouble();
+
+    return liveDistanceKm * rate +
+        holding * holdingRate;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final user =
+        FirebaseAuth.instance.currentUser;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Driver Mode',
+        ),
+        actions: [
+          if (online)
+            IconButton(
+              onPressed: stopDriverMode,
+              icon: const Icon(
+                Icons.power_settings_new,
+              ),
+            ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            flex: 5,
+            child: Stack(
+              children: [
+                FlutterMap(
+                  mapController:
+                      mapController,
+                  options: MapOptions(
+                    initialCenter:
+                        const LatLng(
+                      23.6850,
+                      87.6856,
+                    ),
+                    initialZoom: 8,
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate:
+                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName:
+                          'com.hrride.app',
+                    ),
+
+                    if (currentPosition !=
+                        null)
+                      MarkerLayer(
+                        markers: [
+                          Marker(
+                            point: LatLng(
+                              currentPosition!
+                                  .latitude,
+                              currentPosition!
+                                  .longitude,
+                            ),
+                            width: 55,
+                            height: 55,
+                            child: Transform.rotate(
+                              angle:
+                                  currentPosition!
+                                          .heading *
+                                      math.pi /
+                                      180,
+                              child:
+                                  const Icon(
+                                Icons.navigation,
+                                size: 42,
+                                color:
+                                    Colors.blue,
                               ),
                             ),
                           ),
@@ -2836,10 +2295,543 @@ class AdminPanel extends StatelessWidget {
                       ),
                   ],
                 ),
-              );
-            },
+
+                Positioned(
+                  top: 12,
+                  left: 12,
+                  right: 12,
+                  child: Card(
+                    child: Padding(
+                      padding:
+                          const EdgeInsets.all(
+                        12,
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 12,
+                            height: 12,
+                            decoration:
+                                BoxDecoration(
+                              shape:
+                                  BoxShape.circle,
+                              color: online
+                                  ? Colors.green
+                                  : Colors.red,
+                            ),
+                          ),
+                          const SizedBox(
+                            width: 8,
+                          ),
+                          Text(
+                            online
+                                ? 'DRIVER ONLINE'
+                                : 'DRIVER OFFLINE',
+                            style:
+                                const TextStyle(
+                              fontWeight:
+                                  FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          Expanded(
+            flex: 4,
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore
+                  .instance
+                  .collection('bookings')
+                  .where(
+                    'status',
+                    isEqualTo:
+                        'Confirmed',
+                  )
+                  .snapshots(),
+              builder:
+                  (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const Center(
+                    child:
+                        CircularProgressIndicator(),
+                  );
+                }
+
+                final docs =
+                    snapshot.data!.docs;
+
+                return Column(
+                  children: [
+                    if (activeBookingId !=
+                        null)
+                      Card(
+                        margin:
+                            const EdgeInsets
+                                .all(10),
+                        child: Padding(
+                          padding:
+                              const EdgeInsets
+                                  .all(14),
+                          child: Column(
+                            children: [
+                              const Text(
+                                'ACTIVE TRIP',
+                                style:
+                                    TextStyle(
+                                  fontWeight:
+                                      FontWeight
+                                          .bold,
+                                ),
+                              ),
+                              const SizedBox(
+                                height: 8,
+                              ),
+                              Text(
+                                'Live Distance: '
+                                '${liveDistanceKm.toStringAsFixed(2)} KM',
+                                style:
+                                    const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight:
+                                      FontWeight
+                                          .bold,
+                                ),
+                              ),
+                              const SizedBox(
+                                height: 5,
+                              ),
+                              if (docs
+                                  .isNotEmpty)
+                                Text(
+                                  'Live Bill: '
+                                  '₹${tripBill(
+                                    docs.first.data()
+                                        as Map<String,
+                                            dynamic>,
+                                  ).toStringAsFixed(0)}',
+                                ),
+                              const SizedBox(
+                                height: 10,
+                              ),
+                              SizedBox(
+                                width:
+                                    double.infinity,
+                                child:
+                                    FilledButton.icon(
+                                  onPressed:
+                                      endTrip,
+                                  icon:
+                                      const Icon(
+                                    Icons.stop,
+                                  ),
+                                  label:
+                                      const Text(
+                                    'END TRIP',
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                    Expanded(
+                      child: ListView.builder(
+                        padding:
+                            const EdgeInsets
+                                .symmetric(
+                          horizontal: 10,
+                        ),
+                        itemCount:
+                            docs.length,
+                        itemBuilder:
+                            (context, index) {
+                          final doc =
+                              docs[index];
+
+                          final data =
+                              doc.data()
+                                  as Map<String,
+                                      dynamic>;
+
+                          return Card(
+                            child:
+                                ListTile(
+                              leading:
+                                  const Icon(
+                                Icons
+                                    .local_taxi,
+                                color:
+                                    Colors.blue,
+                              ),
+                              title:
+                                  Text(
+                                '${data['pickup'] ?? ''} → ${data['drop'] ?? ''}',
+                              ),
+                              subtitle:
+                                  Text(
+                                '${data['vehicleType'] ?? 'AC'} • '
+                                '${data['distanceKm'] ?? 0} KM • '
+                                '₹${data['totalAmount'] ?? 0}',
+                              ),
+                              trailing:
+                                  activeBookingId ==
+                                          null
+                                      ? FilledButton(
+                                          onPressed:
+                                              () =>
+                                                  startTrip(
+                                            doc.id,
+                                          ),
+                                          child:
+                                              const Text(
+                                            'START',
+                                          ),
+                                        )
+                                      : null,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton:
+          !online
+              ? FloatingActionButton.extended(
+                  onPressed:
+                      starting
+                          ? null
+                          : startDriverMode,
+                  icon: starting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child:
+                              CircularProgressIndicator(
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Icon(
+                          Icons.play_arrow,
+                        ),
+                  label: Text(
+                    starting
+                        ? 'STARTING...'
+                        : 'GO ONLINE',
+                  ),
+                )
+              : null,
+    );
+  }
+
+  void showMessage(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      SnackBar(
+        content: Text(message),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// CUSTOMER LIVE TRACKING
+// ============================================================
+
+class CustomerTrackingPage
+    extends StatefulWidget {
+  final String bookingId;
+
+  const CustomerTrackingPage({
+    super.key,
+    required this.bookingId,
+  });
+
+  @override
+  State<CustomerTrackingPage> createState() =>
+      _CustomerTrackingPageState();
+}
+
+class _CustomerTrackingPageState
+    extends State<CustomerTrackingPage> {
+  final MapController mapController =
+      MapController();
+
+  LatLng? driverLocation;
+
+  double liveDistanceKm = 0;
+
+  double rate = acRate;
+
+  double holdingHours = 0;
+
+  String status = 'waiting';
+
+  StreamSubscription<DocumentSnapshot>?
+      tripSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+
+    tripSubscription =
+        FirebaseFirestore.instance
+            .collection('liveTrips')
+            .doc(widget.bookingId)
+            .snapshots()
+            .listen(
+      (snapshot) {
+        final data = snapshot.data();
+
+        if (data == null) return;
+
+        final lat =
+            (data['latitude'] as num?)
+                ?.toDouble();
+
+        final lng =
+            (data['longitude'] as num?)
+                ?.toDouble();
+
+        if (lat != null && lng != null) {
+          final location =
+              LatLng(lat, lng);
+
+          setState(() {
+            driverLocation =
+                location;
+
+            liveDistanceKm =
+                ((data['liveDistanceKm'] ??
+                            0)
+                        as num)
+                    .toDouble();
+
+            rate =
+                ((data['ratePerKm'] ??
+                            acRate)
+                        as num)
+                    .toDouble();
+
+            holdingHours =
+                ((data['holdingHours'] ??
+                            0)
+                        as num)
+                    .toDouble();
+
+            status =
+                data['status'] ??
+                    'waiting';
+          });
+
+          mapController.move(
+            location,
+            15,
           );
-        },
+        }
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    tripSubscription?.cancel();
+    super.dispose();
+  }
+
+  double get distanceFare =>
+      liveDistanceKm * rate;
+
+  double get holdingFare =>
+      holdingHours * holdingRate;
+
+  double get totalFare =>
+      distanceFare + holdingFare;
+
+  double get advance =>
+      totalFare * 0.30;
+
+  double get balance =>
+      totalFare - advance;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Live Driver Tracking',
+        ),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            flex: 6,
+            child: FlutterMap(
+              mapController:
+                  mapController,
+              options: MapOptions(
+                initialCenter:
+                    const LatLng(
+                  23.6850,
+                  87.6856,
+                ),
+                initialZoom: 8,
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate:
+                      'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  userAgentPackageName:
+                      'com.hrride.app',
+                ),
+
+                if (driverLocation !=
+                    null)
+                  MarkerLayer(
+                    markers: [
+                      Marker(
+                        point:
+                            driverLocation!,
+                        width: 70,
+                        height: 70,
+                        child: Container(
+                          decoration:
+                              BoxDecoration(
+                            shape:
+                                BoxShape.circle,
+                            color: Colors.blue
+                                .withValues(
+                              alpha: 0.2,
+                            ),
+                          ),
+                          child:
+                              const Icon(
+                            Icons.local_taxi,
+                            size: 42,
+                            color:
+                                Colors.blue,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+
+          Expanded(
+            flex: 3,
+            child: Card(
+              margin:
+                  const EdgeInsets.all(10),
+              child: Padding(
+                padding:
+                    const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment
+                          .stretch,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.circle,
+                          size: 12,
+                          color:
+                              Colors.green,
+                        ),
+                        const SizedBox(
+                          width: 7,
+                        ),
+                        Text(
+                          status ==
+                                  'completed'
+                              ? 'TRIP COMPLETED'
+                              : status ==
+                                      'started'
+                                  ? 'DRIVER ON THE WAY'
+                                  : 'WAITING FOR DRIVER',
+                          style:
+                              const TextStyle(
+                            fontWeight:
+                                FontWeight
+                                    .bold,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(
+                      height: 12,
+                    ),
+
+                    Text(
+                      'Live Distance: '
+                      '${liveDistanceKm.toStringAsFixed(2)} KM',
+                      style:
+                          const TextStyle(
+                        fontSize: 22,
+                        fontWeight:
+                            FontWeight.bold,
+                      ),
+                    ),
+
+                    const SizedBox(
+                      height: 5,
+                    ),
+
+                    Text(
+                      'Distance Fare: '
+                      '₹${distanceFare.toStringAsFixed(0)}',
+                    ),
+
+                    Text(
+                      'Holding: '
+                      '₹${holdingFare.toStringAsFixed(0)}',
+                    ),
+
+                    const Divider(),
+
+                    Text(
+                      'LIVE BILL: '
+                      '₹${totalFare.toStringAsFixed(0)}',
+                      style:
+                          const TextStyle(
+                        fontSize: 19,
+                        fontWeight:
+                            FontWeight.bold,
+                      ),
+                    ),
+
+                    Text(
+                      'Advance 30%: '
+                      '₹${advance.toStringAsFixed(0)}',
+                    ),
+
+                    Text(
+                      'Balance 70%: '
+                      '₹${balance.toStringAsFixed(0)}',
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
