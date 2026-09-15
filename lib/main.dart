@@ -33,6 +33,13 @@ Future<void> main() async {
   runApp(const HRRideApp());
 }
 
+const String adminPhone = '+16505551234';
+const String backendUrl = 'https://hr-ride.onrender.com';
+
+const double acRate = 20;
+const double nonAcRate = 17;
+const double holdingRate = 100;
+
 // ============================================================
 // APP
 // ============================================================
@@ -59,18 +66,6 @@ class HRRideApp extends StatelessWidget {
     );
   }
 }
-
-// ============================================================
-// CONSTANTS
-// ============================================================
-
-const String adminPhone = '+16505551234';
-
-const String backendUrl = 'https://hr-ride.onrender.com';
-
-const double acRate = 20;
-const double nonAcRate = 17;
-const double holdingRate = 100;
 
 // ============================================================
 // AUTH GATE
@@ -103,7 +98,7 @@ class AuthGate extends StatelessWidget {
 }
 
 // ============================================================
-// LOGIN PAGE
+// LOGIN
 // ============================================================
 
 class LoginPage extends StatefulWidget {
@@ -136,19 +131,23 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
-    setState(() {
-      loading = true;
-    });
+    setState(() => loading = true);
 
     try {
       await FirebaseAuth.instance.verifyPhoneNumber(
-        phoneNumber: phone.startsWith('+') ? phone : '+91$phone',
+        phoneNumber: phone.startsWith('+')
+            ? phone
+            : '+91$phone',
         verificationCompleted: (credential) async {
-          await FirebaseAuth.instance.signInWithCredential(credential);
+          await FirebaseAuth.instance
+              .signInWithCredential(credential);
         },
         verificationFailed: (error) {
           if (mounted) {
-            showMessage(error.message ?? 'OTP verification failed');
+            showMessage(
+              error.message ??
+                  'OTP verification failed',
+            );
           }
         },
         codeSent: (id, _) {
@@ -169,9 +168,7 @@ class _LoginPageState extends State<LoginPage> {
       showMessage('OTP Error: $e');
     } finally {
       if (mounted) {
-        setState(() {
-          loading = false;
-        });
+        setState(() => loading = false);
       }
     }
   }
@@ -189,50 +186,48 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
-    setState(() {
-      loading = true;
-    });
+    setState(() => loading = true);
 
     try {
-      final credential = PhoneAuthProvider.credential(
+      final credential =
+          PhoneAuthProvider.credential(
         verificationId: verificationId!,
         smsCode: otp,
       );
 
-      await FirebaseAuth.instance.signInWithCredential(credential);
+      await FirebaseAuth.instance
+          .signInWithCredential(credential);
     } catch (e) {
       showMessage('Invalid OTP');
     } finally {
       if (mounted) {
-        setState(() {
-          loading = false;
-        });
+        setState(() => loading = false);
       }
     }
   }
 
   Future<void> googleLogin() async {
-    setState(() {
-      loading = true;
-    });
+    setState(() => loading = true);
 
     try {
-      final account = await GoogleSignIn.instance.authenticate();
+      final account =
+          await GoogleSignIn.instance.authenticate();
 
-      final authentication = account.authentication;
+      final authentication =
+          account.authentication;
 
-      final credential = GoogleAuthProvider.credential(
+      final credential =
+          GoogleAuthProvider.credential(
         idToken: authentication.idToken,
       );
 
-      await FirebaseAuth.instance.signInWithCredential(credential);
+      await FirebaseAuth.instance
+          .signInWithCredential(credential);
     } catch (e) {
       showMessage('Google Login Error: $e');
     } finally {
       if (mounted) {
-        setState(() {
-          loading = false;
-        });
+        setState(() => loading = false);
       }
     }
   }
@@ -315,7 +310,8 @@ class _LoginPageState extends State<LoginPage> {
                         ? const SizedBox(
                             height: 22,
                             width: 22,
-                            child: CircularProgressIndicator(
+                            child:
+                                CircularProgressIndicator(
                               strokeWidth: 2,
                             ),
                           )
@@ -336,9 +332,12 @@ class _LoginPageState extends State<LoginPage> {
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
-                    onPressed: loading ? null : googleLogin,
+                    onPressed:
+                        loading ? null : googleLogin,
                     icon: const Icon(Icons.login),
-                    label: const Text('Continue with Google'),
+                    label: const Text(
+                      'Continue with Google',
+                    ),
                   ),
                 ),
               ],
@@ -351,7 +350,7 @@ class _LoginPageState extends State<LoginPage> {
 }
 
 // ============================================================
-// HOME PAGE
+// HOME
 // ============================================================
 
 class HomePage extends StatelessWidget {
@@ -386,7 +385,8 @@ class HomePage extends StatelessWidget {
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(18),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment:
+              CrossAxisAlignment.stretch,
           children: [
             Card(
               child: Padding(
@@ -408,7 +408,8 @@ class HomePage extends StatelessWidget {
                                 'HR RIDE Customer',
                             style: const TextStyle(
                               fontSize: 18,
-                              fontWeight: FontWeight.bold,
+                              fontWeight:
+                                  FontWeight.bold,
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -438,7 +439,8 @@ class HomePage extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => const BookingPage(),
+                    builder: (_) =>
+                        const BookingPage(),
                   ),
                 );
               },
@@ -449,12 +451,14 @@ class HomePage extends StatelessWidget {
             _MenuButton(
               icon: Icons.receipt_long,
               title: 'My Bookings',
-              subtitle: 'View your bookings and trips',
+              subtitle:
+                  'View your bookings and trips',
               onTap: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => const MyBookingsPage(),
+                    builder: (_) =>
+                        const MyBookingsPage(),
                   ),
                 );
               },
@@ -464,14 +468,17 @@ class HomePage extends StatelessWidget {
 
             if (isAdmin) ...[
               _MenuButton(
-                icon: Icons.admin_panel_settings,
+                icon:
+                    Icons.admin_panel_settings,
                 title: 'Admin Panel',
-                subtitle: 'Manage bookings',
+                subtitle:
+                    'Manage bookings',
                 onTap: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => const AdminPanel(),
+                      builder: (_) =>
+                          const AdminPanel(),
                     ),
                   );
                 },
@@ -480,12 +487,14 @@ class HomePage extends StatelessWidget {
               _MenuButton(
                 icon: Icons.location_on,
                 title: 'Driver Mode',
-                subtitle: 'Live GPS & Trip Tracking',
+                subtitle:
+                    'Live GPS & Trip Tracking',
                 onTap: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => const DriverModePage(),
+                      builder: (_) =>
+                          const DriverModePage(),
                     ),
                   );
                 },
@@ -515,7 +524,8 @@ class _MenuButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius:
+            BorderRadius.circular(16),
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(18),
@@ -535,7 +545,8 @@ class _MenuButton extends StatelessWidget {
                       title,
                       style: const TextStyle(
                         fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                        fontWeight:
+                            FontWeight.bold,
                       ),
                     ),
                     const SizedBox(height: 5),
@@ -548,7 +559,9 @@ class _MenuButton extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right),
+              const Icon(
+                Icons.chevron_right,
+              ),
             ],
           ),
         ),
@@ -565,14 +578,34 @@ class BookingPage extends StatefulWidget {
   const BookingPage({super.key});
 
   @override
-  State<BookingPage> createState() => _BookingPageState();
+  State<BookingPage> createState() =>
+      _BookingPageState();
 }
 
-class _BookingPageState extends State<BookingPage> {
-  final pickupController = TextEditingController();
-  final dropController = TextEditingController();
-  final distanceController = TextEditingController();
-  final holdingController = TextEditingController(text: '0');
+class _BookingPageState
+    extends State<BookingPage> {
+
+  // Customer details
+  final customerNameController =
+      TextEditingController();
+
+  final customerPhoneController =
+      TextEditingController();
+
+  // Trip details
+  final pickupController =
+      TextEditingController();
+
+  final dropController =
+      TextEditingController();
+
+  final distanceController =
+      TextEditingController();
+
+  final holdingController =
+      TextEditingController(
+    text: '0',
+  );
 
   DateTime travelDate = DateTime.now();
 
@@ -585,7 +618,9 @@ class _BookingPageState extends State<BookingPage> {
   bool booking = false;
 
   double get rate =>
-      vehicleType == 'AC' ? acRate : nonAcRate;
+      vehicleType == 'AC'
+          ? acRate
+          : nonAcRate;
 
   double get enteredKm {
     return double.tryParse(
@@ -601,7 +636,8 @@ class _BookingPageState extends State<BookingPage> {
         0;
   }
 
-  double get chargeableKm => enteredKm;
+  double get chargeableKm =>
+      enteredKm;
 
   double get distanceFare =>
       chargeableKm * rate;
@@ -620,6 +656,8 @@ class _BookingPageState extends State<BookingPage> {
 
   @override
   void dispose() {
+    customerNameController.dispose();
+    customerPhoneController.dispose();
     pickupController.dispose();
     dropController.dispose();
     distanceController.dispose();
@@ -627,19 +665,28 @@ class _BookingPageState extends State<BookingPage> {
     super.dispose();
   }
 
+  // ==========================================================
+  // DISTANCE
+  // ==========================================================
+
   Future<void> calculateDistance() async {
     final pickup =
         pickupController.text.trim();
+
     final drop =
         dropController.text.trim();
 
     if (pickup.isEmpty) {
-      showError('Enter pickup location');
+      showError(
+        'Enter pickup location',
+      );
       return;
     }
 
     if (drop.isEmpty) {
-      showError('Enter drop location');
+      showError(
+        'Enter drop location',
+      );
       return;
     }
 
@@ -665,7 +712,8 @@ class _BookingPageState extends State<BookingPage> {
           '$backendUrl/api/route-distance',
         ),
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type':
+              'application/json',
         },
         body: jsonEncode({
           'pickup': pickup,
@@ -726,7 +774,8 @@ class _BookingPageState extends State<BookingPage> {
       });
 
       showMessage(
-        'Distance: ${distance.toStringAsFixed(1)} KM',
+        'Distance: '
+        '${distance.toStringAsFixed(1)} KM',
       );
     } catch (e) {
       if (!mounted) return;
@@ -743,12 +792,17 @@ class _BookingPageState extends State<BookingPage> {
     }
   }
 
+  // ==========================================================
+  // DATE
+  // ==========================================================
+
   Future<void> selectDate() async {
     final selected =
         await showDatePicker(
       context: context,
       firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(
+      lastDate:
+          DateTime.now().add(
         const Duration(days: 365),
       ),
       initialDate: travelDate,
@@ -761,18 +815,56 @@ class _BookingPageState extends State<BookingPage> {
     }
   }
 
+  // ==========================================================
+  // CREATE BOOKING
+  // ==========================================================
+
   Future<void> createBooking() async {
     final user =
         FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      showError('Please login first');
+      showError(
+        'Please login first',
+      );
       return;
     }
 
-    if (pickupController.text.trim().isEmpty ||
-        dropController.text.trim().isEmpty) {
-      showError('Enter pickup and drop');
+    final customerName =
+        customerNameController
+            .text
+            .trim();
+
+    final customerPhone =
+        customerPhoneController
+            .text
+            .trim();
+
+    if (customerName.isEmpty) {
+      showError(
+        'Enter customer name',
+      );
+      return;
+    }
+
+    if (customerPhone.length != 10 ||
+        int.tryParse(customerPhone) ==
+            null) {
+      showError(
+        'Enter valid 10 digit contact number',
+      );
+      return;
+    }
+
+    if (pickupController.text
+            .trim()
+            .isEmpty ||
+        dropController.text
+            .trim()
+            .isEmpty) {
+      showError(
+        'Enter pickup and drop',
+      );
       return;
     }
 
@@ -788,47 +880,59 @@ class _BookingPageState extends State<BookingPage> {
     });
 
     try {
-      final doc = await FirebaseFirestore
-          .instance
-          .collection('bookings')
-          .add({
+      final doc =
+          await FirebaseFirestore.instance
+              .collection('bookings')
+              .add({
+        // Customer
         'userId': user.uid,
+        'userName': customerName,
         'userPhone':
-            user.phoneNumber ?? '',
-        'userName':
-            user.displayName ?? '',
+            '+91$customerPhone',
         'userEmail':
             user.email ?? '',
 
+        // Route
         'pickup':
             pickupController.text.trim(),
         'drop':
             dropController.text.trim(),
 
-        'vehicle': 'Maruti Ertiga',
-        'mileage': '22 km/l',
-        'region': 'West Bengal',
+        // Vehicle
+        'vehicle':
+            'Maruti Ertiga',
+        'mileage':
+            '22 km/l',
+        'region':
+            'West Bengal',
+        'vehicleType':
+            vehicleType,
 
-        'vehicleType': vehicleType,
-
+        // Date
         'travelDate':
-            Timestamp.fromDate(travelDate),
+            Timestamp.fromDate(
+          travelDate,
+        ),
 
-        'distanceKm': enteredKm,
-        'chargeableKm': chargeableKm,
+        // Distance
+        'distanceKm':
+            enteredKm,
+        'chargeableKm':
+            chargeableKm,
 
-        'ratePerKm': rate,
-
+        // Rates
+        'ratePerKm':
+            rate,
         'holdingHours':
             holdingHours,
         'holdingRate':
             holdingRate,
 
+        // Fare
         'distanceFare':
             distanceFare,
         'holdingFare':
             holdingFare,
-
         'totalAmount':
             totalFare,
         'advanceAmount':
@@ -836,21 +940,31 @@ class _BookingPageState extends State<BookingPage> {
         'balanceAmount':
             balanceAmount,
 
+        // Payment
         'paymentStatus':
             'Pending',
-        'paymentId': '',
-        'orderId': '',
+        'paymentId':
+            '',
+        'orderId':
+            '',
 
-        'status': 'Pending',
+        // Status
+        'status':
+            'Pending',
 
         'createdAt':
-            FieldValue.serverTimestamp(),
+            FieldValue
+                .serverTimestamp(),
       });
 
       if (!mounted) return;
 
       showBillDialog(
         bookingId: doc.id,
+        customerName:
+            customerName,
+        customerPhone:
+            '+91$customerPhone',
       );
     } catch (e) {
       showError(
@@ -865,60 +979,99 @@ class _BookingPageState extends State<BookingPage> {
     }
   }
 
+  // ==========================================================
+  // BILL
+  // ==========================================================
+
   void showBillDialog({
     required String bookingId,
+    required String customerName,
+    required String customerPhone,
   }) {
     showDialog(
       context: context,
       builder: (_) {
         return AlertDialog(
-          title: const Text(
+          title:
+              const Text(
             'Booking Created',
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Booking ID:\n$bookingId',
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Distance: ${enteredKm.toStringAsFixed(1)} KM',
-              ),
-              Text(
-                'Rate: ₹${rate.toStringAsFixed(0)}/KM',
-              ),
-              Text(
-                'Distance Fare: ₹${distanceFare.toStringAsFixed(0)}',
-              ),
-              Text(
-                'Holding: ₹${holdingFare.toStringAsFixed(0)}',
-              ),
-              const Divider(),
-              Text(
-                'Total: ₹${totalFare.toStringAsFixed(0)}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
+          content:
+              SingleChildScrollView(
+            child: Column(
+              mainAxisSize:
+                  MainAxisSize.min,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Customer: '
+                  '$customerName',
                 ),
-              ),
-              Text(
-                'Advance 30%: ₹${advanceAmount.toStringAsFixed(0)}',
-              ),
-              Text(
-                'Balance 70%: ₹${balanceAmount.toStringAsFixed(0)}',
-              ),
-            ],
+                Text(
+                  'Contact: '
+                  '$customerPhone',
+                ),
+                const SizedBox(
+                  height: 10,
+                ),
+                Text(
+                  'Booking ID:\n'
+                  '$bookingId',
+                ),
+                const SizedBox(
+                  height: 12,
+                ),
+                Text(
+                  'Distance: '
+                  '${enteredKm.toStringAsFixed(1)} KM',
+                ),
+                Text(
+                  'Rate: '
+                  '₹${rate.toStringAsFixed(0)}/KM',
+                ),
+                Text(
+                  'Distance Fare: '
+                  '₹${distanceFare.toStringAsFixed(0)}',
+                ),
+                Text(
+                  'Holding: '
+                  '₹${holdingFare.toStringAsFixed(0)}',
+                ),
+                const Divider(),
+                Text(
+                  'Total: '
+                  '₹${totalFare.toStringAsFixed(0)}',
+                  style:
+                      const TextStyle(
+                    fontWeight:
+                        FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+                Text(
+                  'Advance 30%: '
+                  '₹${advanceAmount.toStringAsFixed(0)}',
+                ),
+                Text(
+                  'Balance 70%: '
+                  '₹${balanceAmount.toStringAsFixed(0)}',
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(context);
-                Navigator.pop(context);
+                Navigator.pop(
+                  context,
+                );
+                Navigator.pop(
+                  context,
+                );
               },
-              child: const Text('DONE'),
+              child:
+                  const Text('DONE'),
             ),
           ],
         );
@@ -926,36 +1079,103 @@ class _BookingPageState extends State<BookingPage> {
     );
   }
 
-  void showMessage(String message) {
+  void showMessage(
+    String message,
+  ) {
     if (!mounted) return;
 
     ScaffoldMessenger.of(context)
         .showSnackBar(
-      SnackBar(content: Text(message)),
+      SnackBar(
+        content: Text(message),
+      ),
     );
   }
 
-  void showError(String message) {
+  void showError(
+    String message,
+  ) {
     showMessage(message);
   }
+
+  // ==========================================================
+  // BOOKING UI
+  // ==========================================================
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Book HR RIDE'),
+        title:
+            const Text('Book HR RIDE'),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+      body:
+          SingleChildScrollView(
+        padding:
+            const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment:
-              CrossAxisAlignment.stretch,
+              CrossAxisAlignment
+                  .stretch,
           children: [
+
+            // CUSTOMER NAME
             TextField(
-              controller: pickupController,
+              controller:
+                  customerNameController,
+              textCapitalization:
+                  TextCapitalization
+                      .words,
               decoration:
                   const InputDecoration(
-                labelText: 'Pickup Location',
+                labelText:
+                    'Customer Name',
+                hintText:
+                    'Enter customer name',
+                prefixIcon:
+                    Icon(Icons.person),
+                border:
+                    OutlineInputBorder(),
+              ),
+            ),
+
+            const SizedBox(
+              height: 12,
+            ),
+
+            // CUSTOMER PHONE
+            TextField(
+              controller:
+                  customerPhoneController,
+              keyboardType:
+                  TextInputType.phone,
+              maxLength: 10,
+              decoration:
+                  const InputDecoration(
+                labelText:
+                    'Contact Number',
+                hintText:
+                    '10 digit mobile number',
+                prefixIcon:
+                    Icon(Icons.phone),
+                border:
+                    OutlineInputBorder(),
+                counterText: '',
+              ),
+            ),
+
+            const SizedBox(
+              height: 12,
+            ),
+
+            // PICKUP
+            TextField(
+              controller:
+                  pickupController,
+              decoration:
+                  const InputDecoration(
+                labelText:
+                    'Pickup Location',
                 prefixIcon:
                     Icon(Icons.location_on),
                 border:
@@ -963,13 +1183,18 @@ class _BookingPageState extends State<BookingPage> {
               ),
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(
+              height: 12,
+            ),
 
+            // DROP
             TextField(
-              controller: dropController,
+              controller:
+                  dropController,
               decoration:
                   const InputDecoration(
-                labelText: 'Drop Location',
+                labelText:
+                    'Drop Location',
                 prefixIcon:
                     Icon(Icons.flag),
                 border:
@@ -977,27 +1202,33 @@ class _BookingPageState extends State<BookingPage> {
               ),
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(
+              height: 12,
+            ),
 
+            // DISTANCE
             SizedBox(
               height: 50,
-              child: FilledButton.icon(
+              child:
+                  FilledButton.icon(
                 onPressed:
                     calculatingDistance
                         ? null
                         : calculateDistance,
-                icon: calculatingDistance
-                    ? const SizedBox(
-                        height: 18,
-                        width: 18,
-                        child:
-                            CircularProgressIndicator(
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : const Icon(
-                        Icons.route,
-                      ),
+                icon:
+                    calculatingDistance
+                        ? const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child:
+                                CircularProgressIndicator(
+                              strokeWidth:
+                                  2,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.route,
+                          ),
                 label: Text(
                   calculatingDistance
                       ? 'CALCULATING...'
@@ -1006,75 +1237,107 @@ class _BookingPageState extends State<BookingPage> {
               ),
             ),
 
-            const SizedBox(height: 18),
+            const SizedBox(
+              height: 18,
+            ),
 
-            if (calculatedDistance > 0)
+            if (calculatedDistance >
+                0)
               Card(
-                child: Padding(
+                child:
+                    Padding(
                   padding:
-                      const EdgeInsets.all(16),
-                  child: Column(
+                      const EdgeInsets
+                          .all(16),
+                  child:
+                      Column(
                     children: [
                       Text(
                         '${calculatedDistance.toStringAsFixed(1)} KM',
                         style:
                             const TextStyle(
-                          fontSize: 30,
+                          fontSize:
+                              30,
                           fontWeight:
-                              FontWeight.bold,
+                              FontWeight
+                                  .bold,
                         ),
                       ),
                       if (durationMinutes !=
                           null)
                         Text(
-                          'Approx. ${durationMinutes!} minutes',
+                          'Approx. '
+                          '$durationMinutes minutes',
                         ),
                     ],
                   ),
                 ),
               ),
 
-            const SizedBox(height: 15),
+            const SizedBox(
+              height: 15,
+            ),
 
             const Text(
               'Vehicle Type',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
+              style:
+                  TextStyle(
+                fontWeight:
+                    FontWeight.bold,
               ),
             ),
 
             RadioListTile<String>(
               value: 'AC',
-              groupValue: vehicleType,
-              onChanged: (value) {
-                if (value == null) return;
+              groupValue:
+                  vehicleType,
+              onChanged:
+                  (value) {
+                if (value ==
+                    null) {
+                  return;
+                }
 
                 setState(() {
-                  vehicleType = value;
+                  vehicleType =
+                      value;
                 });
               },
               title:
-                  const Text('AC - ₹20/KM'),
+                  const Text(
+                'AC - ₹20/KM',
+              ),
             ),
 
             RadioListTile<String>(
               value: 'Non-AC',
-              groupValue: vehicleType,
-              onChanged: (value) {
-                if (value == null) return;
+              groupValue:
+                  vehicleType,
+              onChanged:
+                  (value) {
+                if (value ==
+                    null) {
+                  return;
+                }
 
                 setState(() {
-                  vehicleType = value;
+                  vehicleType =
+                      value;
                 });
               },
               title:
-                  const Text('Non-AC - ₹17/KM'),
+                  const Text(
+                'Non-AC - ₹17/KM',
+              ),
             ),
 
+            // HOLDING
             TextField(
-              controller: holdingController,
+              controller:
+                  holdingController,
               keyboardType:
-                  const TextInputType.numberWithOptions(
+                  const TextInputType
+                      .numberWithOptions(
                 decimal: true,
               ),
               decoration:
@@ -1082,7 +1345,9 @@ class _BookingPageState extends State<BookingPage> {
                 labelText:
                     'Holding Hours',
                 prefixIcon:
-                    Icon(Icons.access_time),
+                    Icon(
+                  Icons.access_time,
+                ),
                 helperText:
                     '₹100 per hour',
                 border:
@@ -1093,41 +1358,63 @@ class _BookingPageState extends State<BookingPage> {
               },
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(
+              height: 12,
+            ),
 
+            // DATE
             ListTile(
               leading:
-                  const Icon(Icons.calendar_month),
+                  const Icon(
+                Icons.calendar_month,
+              ),
               title:
-                  const Text('Travel Date'),
-              subtitle: Text(
-                '${travelDate.day}/${travelDate.month}/${travelDate.year}',
+                  const Text(
+                'Travel Date',
+              ),
+              subtitle:
+                  Text(
+                '${travelDate.day}/'
+                '${travelDate.month}/'
+                '${travelDate.year}',
               ),
               trailing:
-                  const Icon(Icons.edit),
-              onTap: selectDate,
+                  const Icon(
+                Icons.edit,
+              ),
+              onTap:
+                  selectDate,
             ),
 
             const Divider(),
 
+            // FARE
             Card(
-              child: Padding(
+              child:
+                  Padding(
                 padding:
-                    const EdgeInsets.all(16),
-                child: Column(
+                    const EdgeInsets
+                        .all(16),
+                child:
+                    Column(
                   crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                      CrossAxisAlignment
+                          .start,
                   children: [
                     const Text(
                       'FARE SUMMARY',
                       style:
                           TextStyle(
-                        fontSize: 18,
+                        fontSize:
+                            18,
                         fontWeight:
-                            FontWeight.bold,
+                            FontWeight
+                                .bold,
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(
+                      height: 12,
+                    ),
 
                     _FareRow(
                       label:
@@ -1153,7 +1440,8 @@ class _BookingPageState extends State<BookingPage> {
                     const Divider(),
 
                     _FareRow(
-                      label: 'TOTAL',
+                      label:
+                          'TOTAL',
                       value:
                           '₹${totalFare.toStringAsFixed(0)}',
                       bold: true,
@@ -1177,25 +1465,30 @@ class _BookingPageState extends State<BookingPage> {
               ),
             ),
 
-            const SizedBox(height: 15),
+            const SizedBox(
+              height: 15,
+            ),
 
             SizedBox(
               height: 54,
-              child: FilledButton(
+              child:
+                  FilledButton(
                 onPressed:
                     booking
                         ? null
                         : createBooking,
-                child: booking
-                    ? const CircularProgressIndicator()
-                    : const Text(
-                        'CONFIRM BOOKING',
-                        style:
-                            TextStyle(
-                          fontWeight:
-                              FontWeight.bold,
-                        ),
-                      ),
+                child:
+                    booking
+                        ? const CircularProgressIndicator()
+                        : const Text(
+                            'CONFIRM BOOKING',
+                            style:
+                                TextStyle(
+                              fontWeight:
+                                  FontWeight
+                                      .bold,
+                            ),
+                          ),
               ),
             ),
           ],
@@ -1205,7 +1498,12 @@ class _BookingPageState extends State<BookingPage> {
   }
 }
 
-class _FareRow extends StatelessWidget {
+// ============================================================
+// FARE ROW
+// ============================================================
+
+class _FareRow
+    extends StatelessWidget {
   final String label;
   final String value;
   final bool bold;
@@ -1217,22 +1515,37 @@ class _FareRow extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final style = TextStyle(
+  Widget build(
+    BuildContext context,
+  ) {
+    final style =
+        TextStyle(
       fontWeight:
-          bold ? FontWeight.bold : FontWeight.normal,
-      fontSize: bold ? 17 : 14,
+          bold
+              ? FontWeight.bold
+              : FontWeight.normal,
+      fontSize:
+          bold ? 17 : 14,
     );
 
     return Padding(
       padding:
-          const EdgeInsets.symmetric(vertical: 4),
+          const EdgeInsets.symmetric(
+        vertical: 4,
+      ),
       child: Row(
         mainAxisAlignment:
-            MainAxisAlignment.spaceBetween,
+            MainAxisAlignment
+                .spaceBetween,
         children: [
-          Text(label, style: style),
-          Text(value, style: style),
+          Text(
+            label,
+            style: style,
+          ),
+          Text(
+            value,
+            style: style,
+          ),
         ],
       ),
     );
@@ -1243,44 +1556,68 @@ class _FareRow extends StatelessWidget {
 // MY BOOKINGS
 // ============================================================
 
-class MyBookingsPage extends StatelessWidget {
+class MyBookingsPage
+    extends StatelessWidget {
   const MyBookingsPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     final user =
-        FirebaseAuth.instance.currentUser;
+        FirebaseAuth.instance
+            .currentUser;
 
     if (user == null) {
       return const Scaffold(
-        body: Center(
-          child: Text('Please login'),
+        body:
+            Center(
+          child:
+              Text(
+            'Please login',
+          ),
         ),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Bookings'),
+      appBar:
+          AppBar(
+        title:
+            const Text(
+          'My Bookings',
+        ),
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('bookings')
-            .where(
-              'userId',
-              isEqualTo: user.uid,
-            )
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
+      body:
+          StreamBuilder<
+              QuerySnapshot>(
+        stream:
+            FirebaseFirestore
+                .instance
+                .collection(
+                  'bookings',
+                )
+                .where(
+                  'userId',
+                  isEqualTo:
+                      user.uid,
+                )
+                .snapshots(),
+        builder:
+            (context, snapshot) {
+          if (snapshot
+              .hasError) {
             return Center(
-              child: Text(
-                'Error: ${snapshot.error}',
+              child:
+                  Text(
+                'Error: '
+                '${snapshot.error}',
               ),
             );
           }
 
-          if (!snapshot.hasData) {
+          if (!snapshot
+              .hasData) {
             return const Center(
               child:
                   CircularProgressIndicator(),
@@ -1288,32 +1625,47 @@ class MyBookingsPage extends StatelessWidget {
           }
 
           final docs =
-              snapshot.data!.docs.toList();
+              snapshot
+                  .data!
+                  .docs
+                  .toList();
 
-          docs.sort((a, b) {
-            final aData =
-                a.data() as Map<String, dynamic>;
-            final bData =
-                b.data() as Map<String, dynamic>;
+          docs.sort(
+            (a, b) {
+              final aData =
+                  a.data()
+                      as Map<String,
+                          dynamic>;
 
-            final aTime =
-                aData['createdAt']
-                    as Timestamp?;
-            final bTime =
-                bData['createdAt']
-                    as Timestamp?;
+              final bData =
+                  b.data()
+                      as Map<String,
+                          dynamic>;
 
-            return (bTime?.millisecondsSinceEpoch ??
-                    0)
-                .compareTo(
-              aTime?.millisecondsSinceEpoch ??
-                  0,
-            );
-          });
+              final aTime =
+                  aData[
+                          'createdAt']
+                      as Timestamp?;
+
+              final bTime =
+                  bData[
+                          'createdAt']
+                      as Timestamp?;
+
+              return (bTime
+                          ?.millisecondsSinceEpoch ??
+                      0)
+                  .compareTo(
+                aTime?.millisecondsSinceEpoch ??
+                    0,
+              );
+            },
+          );
 
           if (docs.isEmpty) {
             return const Center(
-              child: Text(
+              child:
+                  Text(
                 'No bookings yet',
               ),
             );
@@ -1321,12 +1673,15 @@ class MyBookingsPage extends StatelessWidget {
 
           return ListView.builder(
             padding:
-                const EdgeInsets.all(12),
-            itemCount: docs.length,
+                const EdgeInsets
+                    .all(12),
+            itemCount:
+                docs.length,
             itemBuilder:
                 (context, index) {
               return BookingCard(
-                doc: docs[index],
+                doc:
+                    docs[index],
               );
             },
           );
@@ -1340,7 +1695,8 @@ class MyBookingsPage extends StatelessWidget {
 // BOOKING CARD
 // ============================================================
 
-class BookingCard extends StatelessWidget {
+class BookingCard
+    extends StatelessWidget {
   final QueryDocumentSnapshot doc;
 
   const BookingCard({
@@ -1349,105 +1705,156 @@ class BookingCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     final data =
-        doc.data() as Map<String, dynamic>;
+        doc.data()
+            as Map<String,
+                dynamic>;
 
     final status =
-        data['status'] ?? 'Pending';
-
-    final liveTripId = doc.id;
+        data['status'] ??
+            'Pending';
 
     final total =
-        ((data['totalAmount'] ?? 0) as num)
+        ((data[
+                    'totalAmount'] ??
+                0) as num)
             .toDouble();
 
     final advance =
-        ((data['advanceAmount'] ?? 0)
-                as num)
+        ((data[
+                    'advanceAmount'] ??
+                0) as num)
             .toDouble();
 
     return Card(
-      child: Padding(
+      child:
+          Padding(
         padding:
-            const EdgeInsets.all(16),
-        child: Column(
+            const EdgeInsets
+                .all(16),
+        child:
+            Column(
           crossAxisAlignment:
-              CrossAxisAlignment.start,
+              CrossAxisAlignment
+                  .start,
           children: [
             Row(
               children: [
                 const Icon(
                   Icons.local_taxi,
-                  color: Colors.blue,
+                  color:
+                      Colors.blue,
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(
+                  width: 8,
+                ),
                 Expanded(
-                  child: Text(
-                    data['vehicle'] ??
+                  child:
+                      Text(
+                    data[
+                            'vehicle'] ??
                         'Maruti Ertiga',
                     style:
                         const TextStyle(
-                      fontSize: 17,
+                      fontSize:
+                          17,
                       fontWeight:
-                          FontWeight.bold,
+                          FontWeight
+                              .bold,
                     ),
                   ),
                 ),
                 Chip(
-                  label: Text(
-                    status.toString(),
+                  label:
+                      Text(
+                    status
+                        .toString(),
                   ),
                 ),
               ],
             ),
 
-            const SizedBox(height: 10),
-
-            Text(
-              '📍 ${data['pickup'] ?? ''}',
-            ),
-            Text(
-              '🏁 ${data['drop'] ?? ''}',
-            ),
-
-            const SizedBox(height: 8),
-
-            Text(
-              'Distance: ${data['distanceKm'] ?? 0} KM',
+            const SizedBox(
+              height: 10,
             ),
 
             Text(
-              'Total: ₹${total.toStringAsFixed(0)}',
+              '👤 Customer: '
+              '${data['userName'] ?? ''}',
             ),
 
             Text(
-              'Advance: ₹${advance.toStringAsFixed(0)}',
+              '📞 Contact: '
+              '${data['userPhone'] ?? ''}',
             ),
 
-            if (status == 'Confirmed')
+            const SizedBox(
+              height: 6,
+            ),
+
+            Text(
+              '📍 '
+              '${data['pickup'] ?? ''}',
+            ),
+
+            Text(
+              '🏁 '
+              '${data['drop'] ?? ''}',
+            ),
+
+            const SizedBox(
+              height: 8,
+            ),
+
+            Text(
+              'Distance: '
+              '${data['distanceKm'] ?? 0} KM',
+            ),
+
+            Text(
+              'Total: '
+              '₹${total.toStringAsFixed(0)}',
+            ),
+
+            Text(
+              'Advance: '
+              '₹${advance.toStringAsFixed(0)}',
+            ),
+
+            if (status ==
+                'Confirmed')
               Padding(
                 padding:
                     const EdgeInsets.only(
                   top: 12,
                 ),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    icon: const Icon(
+                child:
+                    SizedBox(
+                  width:
+                      double.infinity,
+                  child:
+                      FilledButton.icon(
+                    icon:
+                        const Icon(
                       Icons.location_on,
                     ),
-                    label: const Text(
+                    label:
+                        const Text(
                       'TRACK DRIVER',
                     ),
-                    onPressed: () {
+                    onPressed:
+                        () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) =>
-                              CustomerTrackingPage(
+                          builder:
+                              (_) =>
+                                  CustomerTrackingPage(
                             bookingId:
-                                liveTripId,
+                                doc.id,
                           ),
                         ),
                       );
@@ -1466,45 +1873,68 @@ class BookingCard extends StatelessWidget {
 // ADMIN PANEL
 // ============================================================
 
-class AdminPanel extends StatelessWidget {
-  const AdminPanel({super.key});
+class AdminPanel
+    extends StatelessWidget {
+  const AdminPanel({
+    super.key,
+  });
 
   Future<void> updateStatus(
     String id,
     String status,
   ) async {
-    await FirebaseFirestore.instance
-        .collection('bookings')
+    await FirebaseFirestore
+        .instance
+        .collection(
+          'bookings',
+        )
         .doc(id)
         .update({
-      'status': status,
+      'status':
+          status,
       'updatedAt':
-          FieldValue.serverTimestamp(),
+          FieldValue
+              .serverTimestamp(),
     });
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
+      appBar:
+          AppBar(
+        title:
+            const Text(
           'Admin Panel',
         ),
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('bookings')
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
+      body:
+          StreamBuilder<
+              QuerySnapshot>(
+        stream:
+            FirebaseFirestore
+                .instance
+                .collection(
+                  'bookings',
+                )
+                .snapshots(),
+        builder:
+            (context, snapshot) {
+          if (snapshot
+              .hasError) {
             return Center(
-              child: Text(
-                'Error: ${snapshot.error}',
+              child:
+                  Text(
+                'Error: '
+                '${snapshot.error}',
               ),
             );
           }
 
-          if (!snapshot.hasData) {
+          if (!snapshot
+              .hasData) {
             return const Center(
               child:
                   CircularProgressIndicator(),
@@ -1512,32 +1942,47 @@ class AdminPanel extends StatelessWidget {
           }
 
           final docs =
-              snapshot.data!.docs.toList();
+              snapshot
+                  .data!
+                  .docs
+                  .toList();
 
-          docs.sort((a, b) {
-            final aData =
-                a.data() as Map<String, dynamic>;
-            final bData =
-                b.data() as Map<String, dynamic>;
+          docs.sort(
+            (a, b) {
+              final aData =
+                  a.data()
+                      as Map<String,
+                          dynamic>;
 
-            final aTime =
-                aData['createdAt']
-                    as Timestamp?;
-            final bTime =
-                bData['createdAt']
-                    as Timestamp?;
+              final bData =
+                  b.data()
+                      as Map<String,
+                          dynamic>;
 
-            return (bTime?.millisecondsSinceEpoch ??
-                    0)
-                .compareTo(
-              aTime?.millisecondsSinceEpoch ??
-                  0,
-            );
-          });
+              final aTime =
+                  aData[
+                          'createdAt']
+                      as Timestamp?;
+
+              final bTime =
+                  bData[
+                          'createdAt']
+                      as Timestamp?;
+
+              return (bTime
+                          ?.millisecondsSinceEpoch ??
+                      0)
+                  .compareTo(
+                aTime?.millisecondsSinceEpoch ??
+                    0,
+              );
+            },
+          );
 
           if (docs.isEmpty) {
             return const Center(
-              child: Text(
+              child:
+                  Text(
                 'No bookings',
               ),
             );
@@ -1545,108 +1990,133 @@ class AdminPanel extends StatelessWidget {
 
           return ListView.builder(
             padding:
-                const EdgeInsets.all(12),
-            itemCount: docs.length,
+                const EdgeInsets
+                    .all(12),
+            itemCount:
+                docs.length,
             itemBuilder:
                 (context, index) {
-              final doc = docs[index];
+              final doc =
+                  docs[index];
 
               final data =
                   doc.data()
-                      as Map<String, dynamic>;
+                      as Map<String,
+                          dynamic>;
 
               final status =
-                  data['status'] ??
+                  data[
+                          'status'] ??
                       'Pending';
 
               return Card(
-                child: Padding(
+                child:
+                    Padding(
                   padding:
-                      const EdgeInsets.all(15),
-                  child: Column(
+                      const EdgeInsets
+                          .all(15),
+                  child:
+                      Column(
                     crossAxisAlignment:
-                        CrossAxisAlignment.start,
+                        CrossAxisAlignment
+                            .start,
                     children: [
                       Text(
-                        data['userName']
-                                    ?.toString()
-                                    .isNotEmpty ==
-                                true
-                            ? data['userName']
-                                .toString()
-                            : data['userEmail']
-                                    ?.toString()
-                                    .isNotEmpty ==
-                                true
-                                ? data['userEmail']
-                                    .toString()
-                                : data['userPhone']
-                                        ?.toString()
-                                        .isNotEmpty ==
-                                    true
-                                    ? data['userPhone']
-                                        .toString()
-                                    : 'Customer',
+                        data[
+                                'userName'] ??
+                            'Customer',
                         style:
                             const TextStyle(
                           fontWeight:
-                              FontWeight.bold,
-                          fontSize: 18,
+                              FontWeight
+                                  .bold,
+                          fontSize:
+                              18,
                         ),
                       ),
+
+                      const SizedBox(
+                        height: 5,
+                      ),
+
+                      Text(
+                        '📞 Contact: '
+                        '${data['userPhone'] ?? ''}',
+                      ),
+
+                      if ((data[
+                                      'userEmail'] ??
+                                  '')
+                              .toString()
+                              .isNotEmpty)
+                        Text(
+                          '📧 Email: '
+                          '${data['userEmail']}',
+                        ),
 
                       const SizedBox(
                         height: 8,
                       ),
 
                       Text(
-                        'Pickup: ${data['pickup'] ?? ''}',
+                        'Pickup: '
+                        '${data['pickup'] ?? ''}',
                       ),
 
                       Text(
-                        'Drop: ${data['drop'] ?? ''}',
+                        'Drop: '
+                        '${data['drop'] ?? ''}',
                       ),
 
                       Text(
-                        'Vehicle: ${data['vehicle'] ?? 'Maruti Ertiga'}',
+                        'Vehicle: '
+                        '${data['vehicle'] ?? 'Maruti Ertiga'}',
                       ),
 
                       Text(
-                        'Type: ${data['vehicleType'] ?? 'AC'}',
+                        'Type: '
+                        '${data['vehicleType'] ?? 'AC'}',
                       ),
 
                       Text(
-                        'Distance: ${data['distanceKm'] ?? 0} KM',
+                        'Distance: '
+                        '${data['distanceKm'] ?? 0} KM',
                       ),
 
                       Text(
-                        'Total: ₹${data['totalAmount'] ?? 0}',
+                        'Total: '
+                        '₹${data['totalAmount'] ?? 0}',
                       ),
 
                       Text(
-                        'Advance: ₹${data['advanceAmount'] ?? 0}',
+                        'Advance: '
+                        '₹${data['advanceAmount'] ?? 0}',
                       ),
 
                       Text(
-                        'Payment: ${data['paymentStatus'] ?? 'Pending'}',
+                        'Payment: '
+                        '${data['paymentStatus'] ?? 'Pending'}',
                       ),
 
                       Text(
-                        'Status: $status',
+                        'Status: '
+                        '$status',
                       ),
 
                       const SizedBox(
                         height: 12,
                       ),
 
-                      if (status == 'Pending')
+                      if (status ==
+                          'Pending')
                         Row(
                           children: [
                             Expanded(
                               child:
                                   FilledButton(
-                                onPressed: () =>
-                                    updateStatus(
+                                onPressed:
+                                    () =>
+                                        updateStatus(
                                   doc.id,
                                   'Confirmed',
                                 ),
@@ -1662,8 +2132,9 @@ class AdminPanel extends StatelessWidget {
                             Expanded(
                               child:
                                   OutlinedButton(
-                                onPressed: () =>
-                                    updateStatus(
+                                onPressed:
+                                    () =>
+                                        updateStatus(
                                   doc.id,
                                   'Rejected',
                                 ),
@@ -1691,8 +2162,11 @@ class AdminPanel extends StatelessWidget {
 // DRIVER MODE
 // ============================================================
 
-class DriverModePage extends StatefulWidget {
-  const DriverModePage({super.key});
+class DriverModePage
+    extends StatefulWidget {
+  const DriverModePage({
+    super.key,
+  });
 
   @override
   State<DriverModePage> createState() =>
@@ -1701,6 +2175,7 @@ class DriverModePage extends StatefulWidget {
 
 class _DriverModePageState
     extends State<DriverModePage> {
+
   final MapController mapController =
       MapController();
 
@@ -1732,44 +2207,49 @@ class _DriverModePageState
     super.dispose();
   }
 
-  Future<bool> checkLocationPermission() async {
-    bool enabled =
-        await Geolocator.isLocationServiceEnabled();
+  Future<bool>
+      checkLocationPermission() async {
+
+    final enabled =
+        await Geolocator
+            .isLocationServiceEnabled();
 
     if (!enabled) {
-      if (mounted) {
-        showMessage(
-          'Please turn ON Location/GPS',
-        );
-      }
+      showMessage(
+        'Please turn ON Location/GPS',
+      );
       return false;
     }
 
-    LocationPermission permission =
-        await Geolocator.checkPermission();
+    LocationPermission
+        permission =
+        await Geolocator
+            .checkPermission();
 
     if (permission ==
         LocationPermission.denied) {
       permission =
-          await Geolocator.requestPermission();
+          await Geolocator
+              .requestPermission();
     }
 
     if (permission ==
             LocationPermission.denied ||
         permission ==
-            LocationPermission.deniedForever) {
-      if (mounted) {
-        showMessage(
-          'Location permission is required.',
-        );
-      }
+            LocationPermission
+                .deniedForever) {
+      showMessage(
+        'Location permission is required.',
+      );
       return false;
     }
 
     return true;
   }
 
-  Future<void> startDriverMode() async {
+  Future<void>
+      startDriverMode() async {
+
     if (online) return;
 
     final allowed =
@@ -1783,7 +2263,8 @@ class _DriverModePageState
 
     try {
       final position =
-          await Geolocator.getCurrentPosition(
+          await Geolocator
+              .getCurrentPosition(
         locationSettings:
             const LocationSettings(
           accuracy:
@@ -1792,7 +2273,9 @@ class _DriverModePageState
       );
 
       final user =
-          FirebaseAuth.instance.currentUser;
+          FirebaseAuth
+              .instance
+              .currentUser;
 
       if (user == null) {
         throw Exception(
@@ -1800,29 +2283,44 @@ class _DriverModePageState
         );
       }
 
-      currentPosition = position;
+      currentPosition =
+          position;
 
-      await FirebaseFirestore.instance
-          .collection('driverLocations')
+      await FirebaseFirestore
+          .instance
+          .collection(
+            'driverLocations',
+          )
           .doc(user.uid)
           .set({
-        'driverUid': user.uid,
-        'latitude': position.latitude,
-        'longitude': position.longitude,
-        'heading': position.heading,
-        'speed': position.speed,
-        'online': true,
+        'driverUid':
+            user.uid,
+        'latitude':
+            position.latitude,
+        'longitude':
+            position.longitude,
+        'heading':
+            position.heading,
+        'speed':
+            position.speed,
+        'online':
+            true,
         'updatedAt':
-            FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+            FieldValue
+                .serverTimestamp(),
+      }, SetOptions(
+        merge: true,
+      ));
 
       positionSubscription =
-          Geolocator.getPositionStream(
+          Geolocator
+              .getPositionStream(
         locationSettings:
             const LocationSettings(
           accuracy:
               LocationAccuracy.high,
-          distanceFilter: 5,
+          distanceFilter:
+              5,
         ),
       ).listen(
         onPositionChanged,
@@ -1854,21 +2352,30 @@ class _DriverModePageState
     }
   }
 
-  Future<void> onPositionChanged(
+  Future<void>
+      onPositionChanged(
     Position position,
   ) async {
+
     if (!mounted) return;
 
     setState(() {
-      currentPosition = position;
+      currentPosition =
+          position;
     });
 
-    if (previousPosition != null &&
-        activeBookingId != null) {
+    if (previousPosition !=
+            null &&
+        activeBookingId !=
+            null) {
+
       final meters =
-          Geolocator.distanceBetween(
-        previousPosition!.latitude,
-        previousPosition!.longitude,
+          Geolocator
+              .distanceBetween(
+        previousPosition!
+            .latitude,
+        previousPosition!
+            .longitude,
         position.latitude,
         position.longitude,
       );
@@ -1880,8 +2387,10 @@ class _DriverModePageState
       }
     }
 
-    if (activeBookingId != null) {
-      previousPosition = position;
+    if (activeBookingId !=
+        null) {
+      previousPosition =
+          position;
     }
 
     mapController.move(
@@ -1889,17 +2398,24 @@ class _DriverModePageState
         position.latitude,
         position.longitude,
       ),
-      mapController.camera.zoom,
+      mapController.camera
+          .zoom,
     );
 
-    final now = DateTime.now();
+    final now =
+        DateTime.now();
 
-    if (lastFirestoreUpdate == null ||
+    if (lastFirestoreUpdate ==
+            null ||
         now.difference(
               lastFirestoreUpdate!,
             ) >=
-            const Duration(seconds: 3)) {
-      lastFirestoreUpdate = now;
+            const Duration(
+              seconds: 3,
+            )) {
+
+      lastFirestoreUpdate =
+          now;
 
       await updateDriverLocation(
         position,
@@ -1907,38 +2423,60 @@ class _DriverModePageState
     }
   }
 
-  Future<void> updateDriverLocation(
+  Future<void>
+      updateDriverLocation(
     Position position,
   ) async {
+
     final user =
-        FirebaseAuth.instance.currentUser;
+        FirebaseAuth.instance
+            .currentUser;
 
     if (user == null) return;
 
-    await FirebaseFirestore.instance
-        .collection('driverLocations')
+    await FirebaseFirestore
+        .instance
+        .collection(
+          'driverLocations',
+        )
         .doc(user.uid)
         .set({
-      'driverUid': user.uid,
-      'latitude': position.latitude,
-      'longitude': position.longitude,
-      'heading': position.heading,
-      'speed': position.speed,
-      'online': online,
+      'driverUid':
+          user.uid,
+      'latitude':
+          position.latitude,
+      'longitude':
+          position.longitude,
+      'heading':
+          position.heading,
+      'speed':
+          position.speed,
+      'online':
+          online,
       'activeBookingId':
           activeBookingId,
       'updatedAt':
-          FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+          FieldValue
+              .serverTimestamp(),
+    }, SetOptions(
+      merge: true,
+    ));
 
-    if (activeBookingId != null) {
-      await FirebaseFirestore.instance
-          .collection('liveTrips')
-          .doc(activeBookingId)
+    if (activeBookingId !=
+        null) {
+      await FirebaseFirestore
+          .instance
+          .collection(
+            'liveTrips',
+          )
+          .doc(
+            activeBookingId,
+          )
           .set({
         'bookingId':
             activeBookingId,
-        'driverUid': user.uid,
+        'driverUid':
+            user.uid,
         'latitude':
             position.latitude,
         'longitude':
@@ -1949,16 +2487,21 @@ class _DriverModePageState
             position.speed,
         'liveDistanceKm':
             liveDistanceKm,
-        'status': 'started',
+        'status':
+            'started',
         'updatedAt':
-            FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+            FieldValue
+                .serverTimestamp(),
+      }, SetOptions(
+        merge: true,
+      ));
     }
   }
 
   Future<void> startTrip(
     String bookingId,
   ) async {
+
     if (!online) {
       await startDriverMode();
 
@@ -1966,14 +2509,20 @@ class _DriverModePageState
     }
 
     final user =
-        FirebaseAuth.instance.currentUser;
+        FirebaseAuth.instance
+            .currentUser;
 
     if (user == null) return;
 
     final bookingSnapshot =
-        await FirebaseFirestore.instance
-            .collection('bookings')
-            .doc(bookingId)
+        await FirebaseFirestore
+            .instance
+            .collection(
+              'bookings',
+            )
+            .doc(
+              bookingId,
+            )
             .get();
 
     final bookingData =
@@ -1992,32 +2541,55 @@ class _DriverModePageState
                 .getCurrentPosition();
 
     setState(() {
-      activeBookingId = bookingId;
+      activeBookingId =
+          bookingId;
       liveDistanceKm = 0;
-      previousPosition = position;
+      previousPosition =
+          position;
     });
 
-    await FirebaseFirestore.instance
-        .collection('liveTrips')
-        .doc(bookingId)
+    await FirebaseFirestore
+        .instance
+        .collection(
+          'liveTrips',
+        )
+        .doc(
+          bookingId,
+        )
         .set({
-      'bookingId': bookingId,
-      'driverUid': user.uid,
+      'bookingId':
+          bookingId,
+      'driverUid':
+          user.uid,
+      'customerName':
+          bookingData[
+              'userName'],
+      'customerPhone':
+          bookingData[
+              'userPhone'],
       'pickup':
-          bookingData['pickup'] ?? '',
+          bookingData[
+              'pickup'] ??
+              '',
       'drop':
-          bookingData['drop'] ?? '',
+          bookingData[
+              'drop'] ??
+              '',
       'vehicle':
-          bookingData['vehicle'] ??
+          bookingData[
+                  'vehicle'] ??
               'Maruti Ertiga',
       'vehicleType':
-          bookingData['vehicleType'] ??
+          bookingData[
+                  'vehicleType'] ??
               'AC',
       'ratePerKm':
-          bookingData['ratePerKm'] ??
+          bookingData[
+                  'ratePerKm'] ??
               acRate,
       'holdingHours':
-          bookingData['holdingHours'] ??
+          bookingData[
+                  'holdingHours'] ??
               0,
       'holdingRate':
           holdingRate,
@@ -2029,21 +2601,34 @@ class _DriverModePageState
           position.heading,
       'speed':
           position.speed,
-      'liveDistanceKm': 0,
-      'status': 'started',
+      'liveDistanceKm':
+          0,
+      'status':
+          'started',
       'startedAt':
-          FieldValue.serverTimestamp(),
+          FieldValue
+              .serverTimestamp(),
       'updatedAt':
-          FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+          FieldValue
+              .serverTimestamp(),
+    }, SetOptions(
+      merge: true,
+    ));
 
-    await FirebaseFirestore.instance
-        .collection('bookings')
-        .doc(bookingId)
+    await FirebaseFirestore
+        .instance
+        .collection(
+          'bookings',
+        )
+        .doc(
+          bookingId,
+        )
         .update({
-      'status': 'Trip Started',
+      'status':
+          'Trip Started',
       'tripStartedAt':
-          FieldValue.serverTimestamp(),
+          FieldValue
+              .serverTimestamp(),
     });
 
     showMessage(
@@ -2052,15 +2637,26 @@ class _DriverModePageState
   }
 
   Future<void> endTrip() async {
+
     final bookingId =
         activeBookingId;
 
-    if (bookingId == null) return;
+    if (bookingId == null) {
+      return;
+    }
+
+    final finalDistance =
+        liveDistanceKm;
 
     final tripRef =
-        FirebaseFirestore.instance
-            .collection('liveTrips')
-            .doc(bookingId);
+        FirebaseFirestore
+            .instance
+            .collection(
+              'liveTrips',
+            )
+            .doc(
+              bookingId,
+            );
 
     final tripSnapshot =
         await tripRef.get();
@@ -2069,22 +2665,25 @@ class _DriverModePageState
         tripSnapshot.data();
 
     final rate =
-        ((data?['ratePerKm'] ??
+        ((data?[
+                        'ratePerKm'] ??
                     acRate)
                 as num)
             .toDouble();
 
     final holdingHours =
-        ((data?['holdingHours'] ??
+        ((data?[
+                        'holdingHours'] ??
                     0)
                 as num)
             .toDouble();
 
     final distanceFare =
-        liveDistanceKm * rate;
+        finalDistance * rate;
 
     final holdingFare =
-        holdingHours * holdingRate;
+        holdingHours *
+            holdingRate;
 
     final total =
         distanceFare +
@@ -2098,7 +2697,7 @@ class _DriverModePageState
 
     await tripRef.update({
       'liveDistanceKm':
-          liveDistanceKm,
+          finalDistance,
       'distanceFare':
           distanceFare,
       'holdingFare':
@@ -2109,20 +2708,29 @@ class _DriverModePageState
           advance,
       'balanceAmount':
           balance,
-      'status': 'completed',
+      'status':
+          'completed',
       'endedAt':
-          FieldValue.serverTimestamp(),
+          FieldValue
+              .serverTimestamp(),
       'updatedAt':
-          FieldValue.serverTimestamp(),
+          FieldValue
+              .serverTimestamp(),
     });
 
-    await FirebaseFirestore.instance
-        .collection('bookings')
-        .doc(bookingId)
+    await FirebaseFirestore
+        .instance
+        .collection(
+          'bookings',
+        )
+        .doc(
+          bookingId,
+        )
         .update({
-      'status': 'Completed',
+      'status':
+          'Completed',
       'finalDistanceKm':
-          liveDistanceKm,
+          finalDistance,
       'finalDistanceFare':
           distanceFare,
       'finalHoldingFare':
@@ -2134,24 +2742,30 @@ class _DriverModePageState
       'finalBalanceAmount':
           balance,
       'tripEndedAt':
-          FieldValue.serverTimestamp(),
+          FieldValue
+              .serverTimestamp(),
     });
 
     setState(() {
-      activeBookingId = null;
+      activeBookingId =
+          null;
       liveDistanceKm = 0;
-      previousPosition = null;
+      previousPosition =
+          null;
     });
 
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text(
+      builder: (_) =>
+          AlertDialog(
+        title:
+            const Text(
           'Trip Completed',
         ),
-        content: Text(
+        content:
+            Text(
           'Final Distance: '
-          '${liveDistanceKm.toStringAsFixed(1)} KM\n\n'
+          '${finalDistance.toStringAsFixed(1)} KM\n\n'
           'Distance Fare: '
           '₹${distanceFare.toStringAsFixed(0)}\n'
           'Holding: '
@@ -2166,30 +2780,46 @@ class _DriverModePageState
         actions: [
           TextButton(
             onPressed: () =>
-                Navigator.pop(context),
-            child: const Text('OK'),
+                Navigator.pop(
+              context,
+            ),
+            child:
+                const Text('OK'),
           ),
         ],
       ),
     );
   }
 
-  Future<void> stopDriverMode() async {
-    await positionSubscription?.cancel();
-    positionSubscription = null;
+  Future<void>
+      stopDriverMode() async {
+
+    await positionSubscription
+        ?.cancel();
+
+    positionSubscription =
+        null;
 
     final user =
-        FirebaseAuth.instance.currentUser;
+        FirebaseAuth.instance
+            .currentUser;
 
     if (user != null) {
-      await FirebaseFirestore.instance
-          .collection('driverLocations')
+      await FirebaseFirestore
+          .instance
+          .collection(
+            'driverLocations',
+          )
           .doc(user.uid)
           .set({
-        'online': false,
+        'online':
+            false,
         'updatedAt':
-            FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+            FieldValue
+                .serverTimestamp(),
+      }, SetOptions(
+        merge: true,
+      ));
     }
 
     if (mounted) {
@@ -2200,60 +2830,76 @@ class _DriverModePageState
   }
 
   double tripBill(
-    Map<String, dynamic> booking,
+    Map<String, dynamic>
+        booking,
   ) {
+
     final rate =
-        ((booking['ratePerKm'] ??
-                    acRate)
-                as num)
-            .toDouble();
+        ((booking[
+                    'ratePerKm'] ??
+                acRate)
+            as num)
+        .toDouble();
 
     final holding =
-        ((booking['holdingHours'] ??
-                    0)
-                as num)
-            .toDouble();
+        ((booking[
+                    'holdingHours'] ??
+                0)
+            as num)
+        .toDouble();
 
-    return liveDistanceKm * rate +
-        holding * holdingRate;
+    return liveDistanceKm *
+            rate +
+        holding *
+            holdingRate;
   }
 
   @override
-  Widget build(BuildContext context) {
-    final user =
-        FirebaseAuth.instance.currentUser;
-
+  Widget build(
+    BuildContext context,
+  ) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
+      appBar:
+          AppBar(
+        title:
+            const Text(
           'Driver Mode',
         ),
         actions: [
           if (online)
             IconButton(
-              onPressed: stopDriverMode,
-              icon: const Icon(
-                Icons.power_settings_new,
+              onPressed:
+                  stopDriverMode,
+              icon:
+                  const Icon(
+                Icons
+                    .power_settings_new,
               ),
             ),
         ],
       ),
-      body: Column(
+      body:
+          Column(
         children: [
+
+          // MAP
           Expanded(
             flex: 5,
-            child: Stack(
+            child:
+                Stack(
               children: [
                 FlutterMap(
                   mapController:
                       mapController,
-                  options: MapOptions(
+                  options:
+                      const MapOptions(
                     initialCenter:
-                        const LatLng(
+                        LatLng(
                       23.6850,
                       87.6856,
                     ),
-                    initialZoom: 8,
+                    initialZoom:
+                        8,
                   ),
                   children: [
                     TileLayer(
@@ -2268,15 +2914,19 @@ class _DriverModePageState
                       MarkerLayer(
                         markers: [
                           Marker(
-                            point: LatLng(
+                            point:
+                                LatLng(
                               currentPosition!
                                   .latitude,
                               currentPosition!
                                   .longitude,
                             ),
-                            width: 55,
-                            height: 55,
-                            child: Transform.rotate(
+                            width:
+                                55,
+                            height:
+                                55,
+                            child:
+                                Transform.rotate(
                               angle:
                                   currentPosition!
                                           .heading *
@@ -2284,8 +2934,10 @@ class _DriverModePageState
                                       180,
                               child:
                                   const Icon(
-                                Icons.navigation,
-                                size: 42,
+                                Icons
+                                    .navigation,
+                                size:
+                                    42,
                                 color:
                                     Colors.blue,
                               ),
@@ -2300,24 +2952,31 @@ class _DriverModePageState
                   top: 12,
                   left: 12,
                   right: 12,
-                  child: Card(
-                    child: Padding(
+                  child:
+                      Card(
+                    child:
+                        Padding(
                       padding:
-                          const EdgeInsets.all(
-                        12,
-                      ),
-                      child: Row(
+                          const EdgeInsets
+                              .all(12),
+                      child:
+                          Row(
                         children: [
                           Container(
-                            width: 12,
-                            height: 12,
+                            width:
+                                12,
+                            height:
+                                12,
                             decoration:
                                 BoxDecoration(
                               shape:
-                                  BoxShape.circle,
+                                  BoxShape
+                                      .circle,
                               color: online
-                                  ? Colors.green
-                                  : Colors.red,
+                                  ? Colors
+                                      .green
+                                  : Colors
+                                      .red,
                             ),
                           ),
                           const SizedBox(
@@ -2330,7 +2989,8 @@ class _DriverModePageState
                             style:
                                 const TextStyle(
                               fontWeight:
-                                  FontWeight.bold,
+                                  FontWeight
+                                      .bold,
                             ),
                           ),
                         ],
@@ -2342,21 +3002,30 @@ class _DriverModePageState
             ),
           ),
 
+          // BOOKINGS / ACTIVE TRIP
           Expanded(
             flex: 4,
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore
-                  .instance
-                  .collection('bookings')
-                  .where(
-                    'status',
-                    isEqualTo:
-                        'Confirmed',
-                  )
-                  .snapshots(),
+            child:
+                StreamBuilder<
+                    QuerySnapshot>(
+              stream:
+                  FirebaseFirestore
+                      .instance
+                      .collection(
+                        'bookings',
+                      )
+                      .where(
+                        'status',
+                        isEqualTo:
+                            'Confirmed',
+                      )
+                      .snapshots(),
               builder:
-                  (context, snapshot) {
-                if (!snapshot.hasData) {
+                  (context,
+                      snapshot) {
+
+                if (!snapshot
+                    .hasData) {
                   return const Center(
                     child:
                         CircularProgressIndicator(),
@@ -2364,21 +3033,26 @@ class _DriverModePageState
                 }
 
                 final docs =
-                    snapshot.data!.docs;
+                    snapshot
+                        .data!
+                        .docs;
 
                 return Column(
                   children: [
+
                     if (activeBookingId !=
                         null)
                       Card(
                         margin:
                             const EdgeInsets
                                 .all(10),
-                        child: Padding(
+                        child:
+                            Padding(
                           padding:
                               const EdgeInsets
                                   .all(14),
-                          child: Column(
+                          child:
+                              Column(
                             children: [
                               const Text(
                                 'ACTIVE TRIP',
@@ -2389,36 +3063,47 @@ class _DriverModePageState
                                           .bold,
                                 ),
                               ),
+
                               const SizedBox(
-                                height: 8,
+                                height:
+                                    8,
                               ),
+
                               Text(
                                 'Live Distance: '
                                 '${liveDistanceKm.toStringAsFixed(2)} KM',
                                 style:
                                     const TextStyle(
-                                  fontSize: 20,
+                                  fontSize:
+                                      20,
                                   fontWeight:
                                       FontWeight
                                           .bold,
                                 ),
                               ),
+
                               const SizedBox(
-                                height: 5,
+                                height:
+                                    5,
                               ),
+
                               if (docs
                                   .isNotEmpty)
                                 Text(
                                   'Live Bill: '
                                   '₹${tripBill(
-                                    docs.first.data()
+                                    docs.first
+                                            .data()
                                         as Map<String,
                                             dynamic>,
                                   ).toStringAsFixed(0)}',
                                 ),
+
                               const SizedBox(
-                                height: 10,
+                                height:
+                                    10,
                               ),
+
                               SizedBox(
                                 width:
                                     double.infinity,
@@ -2442,16 +3127,20 @@ class _DriverModePageState
                       ),
 
                     Expanded(
-                      child: ListView.builder(
+                      child:
+                          ListView.builder(
                         padding:
                             const EdgeInsets
                                 .symmetric(
-                          horizontal: 10,
+                          horizontal:
+                              10,
                         ),
                         itemCount:
                             docs.length,
                         itemBuilder:
-                            (context, index) {
+                            (context,
+                                index) {
+
                           final doc =
                               docs[index];
 
@@ -2472,14 +3161,19 @@ class _DriverModePageState
                               ),
                               title:
                                   Text(
-                                '${data['pickup'] ?? ''} → ${data['drop'] ?? ''}',
+                                '${data['userName'] ?? 'Customer'}',
                               ),
                               subtitle:
                                   Text(
+                                '📞 ${data['userPhone'] ?? ''}\n'
+                                '${data['pickup'] ?? ''} → '
+                                '${data['drop'] ?? ''}\n'
                                 '${data['vehicleType'] ?? 'AC'} • '
                                 '${data['distanceKm'] ?? 0} KM • '
                                 '₹${data['totalAmount'] ?? 0}',
                               ),
+                              isThreeLine:
+                                  true,
                               trailing:
                                   activeBookingId ==
                                           null
@@ -2509,24 +3203,31 @@ class _DriverModePageState
       ),
       floatingActionButton:
           !online
-              ? FloatingActionButton.extended(
+              ? FloatingActionButton
+                  .extended(
                   onPressed:
                       starting
                           ? null
                           : startDriverMode,
-                  icon: starting
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child:
-                              CircularProgressIndicator(
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : const Icon(
-                          Icons.play_arrow,
-                        ),
-                  label: Text(
+                  icon:
+                      starting
+                          ? const SizedBox(
+                              width:
+                                  18,
+                              height:
+                                  18,
+                              child:
+                                  CircularProgressIndicator(
+                                strokeWidth:
+                                    2,
+                              ),
+                            )
+                          : const Icon(
+                              Icons
+                                  .play_arrow,
+                            ),
+                  label:
+                      Text(
                     starting
                         ? 'STARTING...'
                         : 'GO ONLINE',
@@ -2536,13 +3237,16 @@ class _DriverModePageState
     );
   }
 
-  void showMessage(String message) {
+  void showMessage(
+    String message,
+  ) {
     if (!mounted) return;
 
     ScaffoldMessenger.of(context)
         .showSnackBar(
       SnackBar(
-        content: Text(message),
+        content:
+            Text(message),
       ),
     );
   }
@@ -2554,6 +3258,7 @@ class _DriverModePageState
 
 class CustomerTrackingPage
     extends StatefulWidget {
+
   final String bookingId;
 
   const CustomerTrackingPage({
@@ -2562,13 +3267,17 @@ class CustomerTrackingPage
   });
 
   @override
-  State<CustomerTrackingPage> createState() =>
-      _CustomerTrackingPageState();
+  State<CustomerTrackingPage>
+      createState() =>
+          _CustomerTrackingPageState();
 }
 
 class _CustomerTrackingPageState
-    extends State<CustomerTrackingPage> {
-  final MapController mapController =
+    extends State<
+        CustomerTrackingPage> {
+
+  final MapController
+      mapController =
       MapController();
 
   LatLng? driverLocation;
@@ -2579,9 +3288,17 @@ class _CustomerTrackingPageState
 
   double holdingHours = 0;
 
-  String status = 'waiting';
+  String status =
+      'waiting';
 
-  StreamSubscription<DocumentSnapshot>?
+  String customerName =
+      '';
+
+  String customerPhone =
+      '';
+
+  StreamSubscription<
+          DocumentSnapshot>?
       tripSubscription;
 
   @override
@@ -2589,52 +3306,86 @@ class _CustomerTrackingPageState
     super.initState();
 
     tripSubscription =
-        FirebaseFirestore.instance
-            .collection('liveTrips')
-            .doc(widget.bookingId)
+        FirebaseFirestore
+            .instance
+            .collection(
+              'liveTrips',
+            )
+            .doc(
+              widget.bookingId,
+            )
             .snapshots()
             .listen(
       (snapshot) {
-        final data = snapshot.data();
 
-        if (data == null) return;
+        final data =
+            snapshot.data();
+
+        if (data == null) {
+          return;
+        }
 
         final lat =
-            (data['latitude'] as num?)
+            (data[
+                        'latitude']
+                    as num?)
                 ?.toDouble();
 
         final lng =
-            (data['longitude'] as num?)
+            (data[
+                        'longitude']
+                    as num?)
                 ?.toDouble();
 
-        if (lat != null && lng != null) {
+        if (lat != null &&
+            lng != null) {
+
           final location =
-              LatLng(lat, lng);
+              LatLng(
+            lat,
+            lng,
+          );
+
+          if (!mounted) return;
 
           setState(() {
             driverLocation =
                 location;
 
             liveDistanceKm =
-                ((data['liveDistanceKm'] ??
-                            0)
-                        as num)
+                ((data[
+                            'liveDistanceKm'] ??
+                        0)
+                    as num)
                     .toDouble();
 
             rate =
-                ((data['ratePerKm'] ??
-                            acRate)
-                        as num)
+                ((data[
+                            'ratePerKm'] ??
+                        acRate)
+                    as num)
                     .toDouble();
 
             holdingHours =
-                ((data['holdingHours'] ??
-                            0)
-                        as num)
+                ((data[
+                            'holdingHours'] ??
+                        0)
+                    as num)
                     .toDouble();
 
+            customerName =
+                data[
+                        'customerName'] ??
+                    '';
+
+            customerPhone =
+                data[
+                        'customerPhone'] ??
+                    '';
+
             status =
-                data['status'] ??
+                data[
+                        'status'] ??
                     'waiting';
           });
 
@@ -2649,7 +3400,8 @@ class _CustomerTrackingPageState
 
   @override
   void dispose() {
-    tripSubscription?.cancel();
+    tripSubscription
+        ?.cancel();
     super.dispose();
   }
 
@@ -2657,39 +3409,51 @@ class _CustomerTrackingPageState
       liveDistanceKm * rate;
 
   double get holdingFare =>
-      holdingHours * holdingRate;
+      holdingHours *
+      holdingRate;
 
   double get totalFare =>
-      distanceFare + holdingFare;
+      distanceFare +
+      holdingFare;
 
   double get advance =>
       totalFare * 0.30;
 
   double get balance =>
-      totalFare - advance;
+      totalFare -
+      advance;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
+      appBar:
+          AppBar(
+        title:
+            const Text(
           'Live Driver Tracking',
         ),
       ),
-      body: Column(
+      body:
+          Column(
         children: [
+
           Expanded(
             flex: 6,
-            child: FlutterMap(
+            child:
+                FlutterMap(
               mapController:
                   mapController,
-              options: MapOptions(
+              options:
+                  const MapOptions(
                 initialCenter:
-                    const LatLng(
+                    LatLng(
                   23.6850,
                   87.6856,
                 ),
-                initialZoom: 8,
+                initialZoom:
+                    8,
               ),
               children: [
                 TileLayer(
@@ -2706,22 +3470,30 @@ class _CustomerTrackingPageState
                       Marker(
                         point:
                             driverLocation!,
-                        width: 70,
-                        height: 70,
-                        child: Container(
+                        width:
+                            70,
+                        height:
+                            70,
+                        child:
+                            Container(
                           decoration:
                               BoxDecoration(
                             shape:
-                                BoxShape.circle,
-                            color: Colors.blue
+                                BoxShape
+                                    .circle,
+                            color: Colors
+                                .blue
                                 .withValues(
-                              alpha: 0.2,
+                              alpha:
+                                  0.2,
                             ),
                           ),
                           child:
                               const Icon(
-                            Icons.local_taxi,
-                            size: 42,
+                            Icons
+                                .local_taxi,
+                            size:
+                                42,
                             color:
                                 Colors.blue,
                           ),
@@ -2735,17 +3507,47 @@ class _CustomerTrackingPageState
 
           Expanded(
             flex: 3,
-            child: Card(
+            child:
+                Card(
               margin:
-                  const EdgeInsets.all(10),
-              child: Padding(
+                  const EdgeInsets
+                      .all(10),
+              child:
+                  Padding(
                 padding:
-                    const EdgeInsets.all(16),
-                child: Column(
+                    const EdgeInsets
+                        .all(16),
+                child:
+                    Column(
                   crossAxisAlignment:
                       CrossAxisAlignment
                           .stretch,
                   children: [
+
+                    if (customerName
+                        .isNotEmpty)
+                      Text(
+                        customerName,
+                        style:
+                            const TextStyle(
+                          fontSize:
+                              18,
+                          fontWeight:
+                              FontWeight
+                                  .bold,
+                        ),
+                      ),
+
+                    if (customerPhone
+                        .isNotEmpty)
+                      Text(
+                        customerPhone,
+                      ),
+
+                    const SizedBox(
+                      height: 8,
+                    ),
+
                     Row(
                       children: [
                         const Icon(
@@ -2784,14 +3586,12 @@ class _CustomerTrackingPageState
                       '${liveDistanceKm.toStringAsFixed(2)} KM',
                       style:
                           const TextStyle(
-                        fontSize: 22,
+                        fontSize:
+                            22,
                         fontWeight:
-                            FontWeight.bold,
+                            FontWeight
+                                .bold,
                       ),
-                    ),
-
-                    const SizedBox(
-                      height: 5,
                     ),
 
                     Text(
@@ -2811,9 +3611,11 @@ class _CustomerTrackingPageState
                       '₹${totalFare.toStringAsFixed(0)}',
                       style:
                           const TextStyle(
-                        fontSize: 19,
+                        fontSize:
+                            19,
                         fontWeight:
-                            FontWeight.bold,
+                            FontWeight
+                                .bold,
                       ),
                     ),
 
