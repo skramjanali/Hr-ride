@@ -14,7 +14,30 @@ workflows:
         script: |
           rm -rf android
           flutter create . --platforms=android --org com.hrride
+      - name: Configure Location Permissions
+        script: |
+          python3 - <<'PY'
+          from pathlib import Path
 
+          manifest = Path("android/app/src/main/AndroidManifest.xml")
+          text = manifest.read_text()
+
+          permissions = """
+          <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+          <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+          <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
+          <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+          <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
+          """
+
+          if "android.permission.ACCESS_BACKGROUND_LOCATION" not in text:
+              text = text.replace(
+                  "</manifest>",
+                  permissions + "\n</manifest>"
+              )
+
+          manifest.write_text(text)
+          PY
       - name: Configure Firebase
         script: |
           cp app/google-services.json android/app/google-services.json
