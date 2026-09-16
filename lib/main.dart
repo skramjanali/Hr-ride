@@ -15,6 +15,7 @@ import 'package:flutter_cashfree_pg_sdk/utils/cfenums.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -27,7 +28,7 @@ const double acRate = 20.0;
 const double nonAcRate = 17.0;
 const double holdingRate = 100.0;
 const double advancePercent = 0.50;
-const double cashbackPercent = 0.05;
+const double cashbackPercent = 0.02;
 
 const String vehicleName = 'Maruti Ertiga';
 const List<String> availableVehicles = <String>[
@@ -68,24 +69,48 @@ class HRRideApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF080B12),
+        brightness: Brightness.light,
+        scaffoldBackgroundColor: const Color(0xFFF6F9FF),
         colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.blue,
-          brightness: Brightness.dark,
+          seedColor: const Color(0xFF1769FF),
+          brightness: Brightness.light,
+        ),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.white,
+          foregroundColor: Color(0xFF0D1B35),
+          elevation: 0,
+          centerTitle: false,
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: const Color(0xFF111722),
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 16,
+          ),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Color(0xFFE2E9F5)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Color(0xFFE2E9F5)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(
+              color: Color(0xFF1769FF),
+              width: 1.5,
+            ),
           ),
         ),
         cardTheme: CardThemeData(
-          color: const Color(0xFF101620),
-          elevation: 3,
+          color: Colors.white,
+          elevation: 0,
+          margin: const EdgeInsets.symmetric(vertical: 7),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(22),
+            side: const BorderSide(color: Color(0xFFE8EEF8)),
           ),
         ),
       ),
@@ -311,7 +336,10 @@ class HomePage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('HR RIDE'),
+        title: const Text(
+          'HR RIDE',
+          style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: .4),
+        ),
         actions: [
           IconButton(
             onPressed: () async {
@@ -320,37 +348,68 @@ class HomePage extends StatelessWidget {
                 await googleSignIn.signOut();
               } catch (_) {}
             },
-            icon: const Icon(Icons.logout),
+            icon: const Icon(Icons.logout_rounded),
           ),
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
         children: [
-          _homeHeader(user),
-          const SizedBox(height: 18),
+          _hero(user),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _miniFeature(
+                  Icons.verified_rounded,
+                  'Verified',
+                  'Safe rides',
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _miniFeature(
+                  Icons.location_on_rounded,
+                  'All Locations',
+                  serviceRegion,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _walletBanner(context),
+          const SizedBox(height: 12),
+          const Text(
+            'Quick Actions',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF10203D),
+            ),
+          ),
+          const SizedBox(height: 6),
           HomeTile(
-            icon: Icons.local_taxi,
+            icon: Icons.local_taxi_rounded,
             title: 'Book HR RIDE',
-            subtitle: 'Book your Maruti Ertiga',
+            subtitle: 'Maruti Ertiga • Maruti Omni',
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const BookingPage()),
             ),
           ),
           HomeTile(
-            icon: Icons.account_balance_wallet,
+            icon: Icons.account_balance_wallet_rounded,
             title: 'My Wallet',
-            subtitle: 'Cashback rewards & wallet balance',
+            subtitle: '2% cashback after completed trips',
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const WalletPage()),
             ),
           ),
           HomeTile(
-            icon: Icons.receipt_long,
+            icon: Icons.receipt_long_rounded,
             title: 'My Bookings',
-            subtitle: 'View booking, payment and trip status',
+            subtitle: 'Booking, payment & trip status',
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const MyBookingsPage()),
@@ -358,7 +417,7 @@ class HomePage extends StatelessWidget {
           ),
           if (isAdmin)
             HomeTile(
-              icon: Icons.admin_panel_settings,
+              icon: Icons.admin_panel_settings_rounded,
               title: 'Admin Panel',
               subtitle: 'Accept or reject bookings',
               onTap: () => Navigator.push(
@@ -368,52 +427,199 @@ class HomePage extends StatelessWidget {
             ),
           if (isAdmin)
             HomeTile(
-              icon: Icons.directions_car,
+              icon: Icons.directions_car_filled_rounded,
               title: 'Driver Mode',
-              subtitle: 'Start trip and share live location',
+              subtitle: 'Start trip & share live location',
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const DriverModePage()),
               ),
             ),
+          const SizedBox(height: 10),
+          const Center(
+            child: Text(
+              'Safe Rides  •  Wallet Rewards  •  24/7 Support',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Color(0xFF71809A),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _homeHeader(User? user) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Row(
-          children: [
-            const CircleAvatar(
-              radius: 28,
-              child: Icon(Icons.person),
+  Widget _hero(User? user) {
+    final name = user?.displayName?.isNotEmpty == true
+        ? user!.displayName!
+        : user?.phoneNumber ?? 'HR RIDE Customer';
+
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF1769FF), Color(0xFF49A4FF)],
+        ),
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x331769FF),
+            blurRadius: 22,
+            offset: Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 58,
+            height: 58,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(.18),
+              shape: BoxShape.circle,
             ),
-            const SizedBox(width: 14),
+            child: const Icon(
+              Icons.person_rounded,
+              color: Colors.white,
+              size: 30,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'WELCOME TO',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                const Text(
+                  'HR RIDE',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 27,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Hi, $name',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Icon(
+            Icons.arrow_forward_ios_rounded,
+            color: Colors.white,
+            size: 18,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _miniFeature(IconData icon, String title, String subtitle) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE7EDF7)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: const Color(0xFF1769FF)),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF14233F),
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF78869D),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _walletBanner(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(22),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const WalletPage()),
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEAF3FF),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: const Color(0xFFD7E8FF)),
+        ),
+        child: const Row(
+          children: [
+            CircleAvatar(
+              backgroundColor: Colors.white,
+              child: Icon(
+                Icons.account_balance_wallet_rounded,
+                color: Color(0xFF1769FF),
+              ),
+            ),
+            SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Welcome',
-                    style: TextStyle(color: Colors.grey.shade400),
-                  ),
-                  Text(
-                    user?.displayName?.isNotEmpty == true
-                        ? user!.displayName!
-                        : user?.phoneNumber ?? 'HR RIDE Customer',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                    'Wallet & Cashback',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF10203D),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text('$vehicleName • $serviceRegion'),
+                  SizedBox(height: 3),
+                  Text(
+                    'Get 2% cashback after your completed trip.',
+                    style: TextStyle(color: Color(0xFF65748B)),
+                  ),
                 ],
               ),
             ),
+            Icon(Icons.chevron_right_rounded, color: Color(0xFF1769FF)),
           ],
         ),
       ),
@@ -468,6 +674,10 @@ class _BookingPageState extends State<BookingPage> {
   final dropController = TextEditingController();
 
   String vehicleType = 'AC';
+  String selectedVehicle = vehicleName;
+  Map<String, dynamic> selectedVehicleData = const {};
+  bool upAndDown = false;
+  double? routeDistanceKm;
   DateTime travelDate = DateTime.now().add(const Duration(days: 1));
   int holdingHours = 0;
 
@@ -519,16 +729,24 @@ class _BookingPageState extends State<BookingPage> {
     } catch (_) {}
   }
 
-  double get walletUsed => useWallet ? min(walletBalance, totalAmount) : 0;
+  double get walletUseLimit => totalAmount * 0.01;
+  double get walletUsed => useWallet ? min(walletBalance, walletUseLimit) : 0;
   double get payableTotal => max(0, totalAmount - walletUsed);
 
-  double get rate => vehicleType == 'AC' ? acRate : nonAcRate;
+  double get rate {
+    final dynamicRate = vehicleType == 'AC'
+        ? NumberUtil.toDouble(selectedVehicleData['acRate'])
+        : NumberUtil.toDouble(selectedVehicleData['nonAcRate']);
+    return dynamicRate ?? (vehicleType == 'AC' ? acRate : nonAcRate);
+  }
 
-  double get distanceFare =>
-      (distanceKm ?? 0) * rate;
+  double get selectedMileage =>
+      NumberUtil.toDouble(selectedVehicleData['mileage']) ?? vehicleMileage;
 
-  double get holdingFare =>
-      holdingHours * holdingRate;
+  double get distanceFare => (distanceKm ?? 0) * rate;
+
+  double get holdingFare => holdingHours * holdingRate;
+
 
   double get totalAmount =>
       distanceFare + holdingFare;
@@ -573,15 +791,17 @@ class _BookingPageState extends State<BookingPage> {
         throw Exception('Invalid distance returned by server.');
       }
 
+      final chargeableKm = km * 2;
       setState(() {
-        distanceKm = km;
-        durationMinutes = minutes;
+        routeDistanceKm = km;
+        distanceKm = chargeableKm;
+        durationMinutes = minutes == null ? null : minutes * 2;
       });
 
       snack(
         context,
-        'Distance: ${km.toStringAsFixed(1)} km'
-        '${minutes != null ? ' • $minutes min' : ''}',
+        'Route: ${km.toStringAsFixed(1)} km • Chargeable: ${chargeableKm.toStringAsFixed(1)} km'
+        '${minutes != null ? ' • ${minutes * 2} min approx.' : ''}',
       );
     } catch (e) {
       snack(context, 'Route error: $e');
@@ -643,23 +863,28 @@ class _BookingPageState extends State<BookingPage> {
       'userEmail': emailController.text.trim(),
       'pickup': pickupController.text.trim(),
       'drop': dropController.text.trim(),
-      'vehicle': vehicleName,
-      'mileage': vehicleMileage,
+      'vehicle': selectedVehicle,
+      'mileage': selectedMileage,
       'region': serviceRegion,
       'vehicleType': vehicleType,
+      'vehicleName': selectedVehicle,
       'travelDate': Timestamp.fromDate(travelDate),
       'distanceKm': distanceKm,
       'durationMinutes': durationMinutes,
       'chargeableKm': distanceKm,
       'ratePerKm': rate,
+      'tripType': upAndDown ? 'Up & Down' : 'One Way',
+      'routeDistanceKm': routeDistanceKm,
       'holdingHours': holdingHours,
       'holdingRate': holdingRate,
+      'holdingCharge': holdingFare,
       'distanceFare': distanceFare,
       'holdingFare': holdingFare,
       'totalAmount': totalAmount,
       'walletUsed': walletUsed,
       'payableTotal': payableTotal,
       'advancePercent': advancePercent * 100,
+      'advanceNonRefundable': true,
       'advanceAmount': advanceAmount,
       'balanceAmount': balanceAmount,
       'paymentStatus': 'Pending',
@@ -938,14 +1163,86 @@ class _BookingPageState extends State<BookingPage> {
             ),
           ),
           const SizedBox(height: 14),
+          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: db.collection('vehicles').where('active', isEqualTo: true).snapshots(),
+            builder: (context, snapshot) {
+              final dynamicVehicles = <Map<String, dynamic>>[];
+              if (snapshot.hasData) {
+                for (final doc in snapshot.data!.docs) {
+                  final v = doc.data();
+                  v['id'] = doc.id;
+                  dynamicVehicles.add(v);
+                }
+              }
+              if (dynamicVehicles.isEmpty) {
+                dynamicVehicles.addAll([
+                  {
+                    'id': 'ertiga_default',
+                    'name': 'Maruti Ertiga',
+                    'seats': 7,
+                    'mileage': 22,
+                    'acRate': 20,
+                    'nonAcRate': 17,
+                    'active': true,
+                  },
+                  {
+                    'id': 'omni_default',
+                    'name': 'Maruti Omni',
+                    'seats': 8,
+                    'mileage': 16,
+                    'acRate': 20,
+                    'nonAcRate': 17,
+                    'active': true,
+                  },
+                ]);
+              }
+              final names = dynamicVehicles
+                  .map((v) => (v['name'] ?? '').toString())
+                  .where((n) => n.isNotEmpty)
+                  .toList();
+              final current = names.contains(selectedVehicle) ? selectedVehicle : names.first;
+              final currentData = dynamicVehicles.firstWhere(
+                (v) => (v['name'] ?? '').toString() == current,
+                orElse: () => dynamicVehicles.first,
+              );
+              return DropdownButtonFormField<String>(
+                value: current,
+                decoration: const InputDecoration(
+                  labelText: 'Vehicle',
+                  prefixIcon: Icon(Icons.directions_car),
+                ),
+                items: dynamicVehicles.map((v) {
+                  final name = (v['name'] ?? 'Vehicle').toString();
+                  final seats = (v['seats'] ?? '').toString();
+                  return DropdownMenuItem<String>(
+                    value: name,
+                    child: Text(seats.isEmpty ? name : '$name • $seats Seater'),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  if (value == null) return;
+                  final data = dynamicVehicles.firstWhere(
+                    (v) => (v['name'] ?? '').toString() == value,
+                    orElse: () => currentData,
+                  );
+                  setState(() {
+                    selectedVehicle = value;
+                    selectedVehicleData = Map<String, dynamic>.from(data);
+                  });
+                },
+              );
+            },
+          ),
+          const SizedBox(height: 10),
           DropdownButtonFormField<String>(
             value: vehicleType,
             decoration: const InputDecoration(
-              labelText: 'Vehicle Type',
+              labelText: 'AC / Non-AC',
+              prefixIcon: Icon(Icons.ac_unit),
             ),
-            items: const [
-              DropdownMenuItem(value: 'AC', child: Text('AC')),
-              DropdownMenuItem(value: 'Non-AC', child: Text('Non-AC')),
+            items: [
+              DropdownMenuItem(value: 'AC', child: Text('AC • ₹${NumberUtil.toDouble(selectedVehicleData['acRate'])?.toStringAsFixed(0) ?? acRate.toStringAsFixed(0)}/km')),
+              DropdownMenuItem(value: 'Non-AC', child: Text('Non-AC • ₹${NumberUtil.toDouble(selectedVehicleData['nonAcRate'])?.toStringAsFixed(0) ?? nonAcRate.toStringAsFixed(0)}/km')),
             ],
             onChanged: (value) {
               if (value != null) setState(() => vehicleType = value);
@@ -953,50 +1250,39 @@ class _BookingPageState extends State<BookingPage> {
           ),
           const SizedBox(height: 10),
           ListTile(
-            tileColor: const Color(0xFF111722),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
-            leading: const Icon(Icons.calendar_month),
-            title: const Text('Travel Date'),
-            subtitle: Text(formatDate(travelDate)),
-            trailing: TextButton(
-              onPressed: chooseDate,
-              child: const Text('CHANGE'),
+            tileColor: const Color(0xFFEAF3FF),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            leading: const Icon(Icons.route_rounded),
+            title: Text(upAndDown ? 'Up & Down' : 'One Way'),
+            subtitle: Text(upAndDown
+                ? 'Route distance × 2 • Holding ₹100/hour'
+                : 'Route distance × 2 • No holding charge'),
+            trailing: Switch(
+              value: upAndDown,
+              onChanged: (v) => setState(() => upAndDown = v),
             ),
           ),
           const SizedBox(height: 10),
-          Card(
-            child: Column(
-              children: [
-                const ListTile(
-                  title: Text('Holding / Waiting'),
-                  subtitle: Text('₹100 per hour'),
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    IconButton(
-                      onPressed: holdingHours > 0
-                          ? () => setState(() => holdingHours--)
-                          : null,
-                      icon: const Icon(Icons.remove_circle_outline),
-                    ),
-                    Text(
-                      '$holdingHours hour(s)',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () => setState(() => holdingHours++),
-                      icon: const Icon(Icons.add_circle_outline),
-                    ),
-                  ],
-                ),
-              ],
+          DropdownButtonFormField<int>(
+            value: holdingHours,
+            decoration: const InputDecoration(
+              labelText: 'Holding Hours',
+              prefixIcon: Icon(Icons.schedule),
             ),
+            items: List.generate(25, (i) => DropdownMenuItem<int>(
+              value: i,
+              child: Text(i == 0 ? 'No Holding' : '$i hour${i == 1 ? '' : 's'} • ₹${(i * holdingRate).toStringAsFixed(0)}'),
+            )),
+            onChanged: (v) => setState(() => holdingHours = v ?? 0),
+          ),
+          const SizedBox(height: 10),
+          ListTile(
+            tileColor: const Color(0xFFF4F7FC),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            leading: const Icon(Icons.calendar_month),
+            title: const Text('Travel Date'),
+            subtitle: Text(formatDate(travelDate)),
+            trailing: TextButton(onPressed: chooseDate, child: const Text('CHANGE')),
           ),
           const SizedBox(height: 14),
           Card(
@@ -1009,12 +1295,23 @@ class _BookingPageState extends State<BookingPage> {
               title: const Text('Use Wallet Balance'),
               subtitle: Text(
                 walletBalance > 0
-                    ? 'Available ${money(walletBalance)} • Save ${money(walletUsed)}'
+                    ? 'Available ${money(walletBalance)} • Use up to ${money(walletUseLimit)}'
                     : 'No wallet balance available',
               ),
             ),
           ),
           const SizedBox(height: 10),
+          if (routeDistanceKm != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                upAndDown
+                    ? 'Up & Down: ${routeDistanceKm!.toStringAsFixed(1)} km × 2 + ₹1,000 holding'
+                    : 'One Way: ${routeDistanceKm!.toStringAsFixed(1)} km × 2',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
           FareCard(
             distanceKm: distanceKm,
             rate: rate,
@@ -1027,7 +1324,7 @@ class _BookingPageState extends State<BookingPage> {
           const SizedBox(height: 8),
           if (walletUsed > 0)
             Text(
-              'Wallet discount: -${money(walletUsed)} • Payable: ${money(payableTotal)}',
+              'Wallet used: -${money(walletUsed)} • Payable: ${money(payableTotal)}',
               textAlign: TextAlign.center,
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
@@ -1380,10 +1677,27 @@ class BookingCard extends StatelessWidget {
               'Payment: $paymentStatus',
             ),
             if (b['orderId']?.toString().isNotEmpty == true)
-              infoLine(
-                Icons.receipt,
-                'Order: ${b['orderId']}',
+              infoLine(Icons.receipt, 'Order: ${b['orderId']}'),
+            if ((b['driverName'] ?? '').toString().isNotEmpty) ...[
+              const Divider(height: 24),
+              infoLine(Icons.person_pin_circle, 'Driver: ${b['driverName']}'),
+              infoLine(Icons.phone, 'Driver Phone: ${b['driverPhone'] ?? ''}'),
+              if ((b['vehicleNumber'] ?? '').toString().isNotEmpty)
+                infoLine(Icons.confirmation_number, 'Vehicle No: ${b['vehicleNumber']}'),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () async {
+                    final phone = (b['driverPhone'] ?? '').toString().trim();
+                    if (phone.isEmpty) { snack(context, 'Driver phone not available.'); return; }
+                    final uri = Uri(scheme: 'tel', path: phone);
+                    if (!await launchUrl(uri)) snack(context, 'Could not open phone dialer.');
+                  },
+                  icon: const Icon(Icons.call),
+                  label: const Text('CALL DRIVER'),
+                ),
               ),
+            ],
             const SizedBox(height: 8),
             if (canTrack)
               SizedBox(
@@ -1403,6 +1717,35 @@ class BookingCard extends StatelessWidget {
                   label: const Text('TRACK DRIVER'),
                 ),
               ),
+            final balance = NumberUtil.toDouble(b['balanceAmount']) ?? 0;
+            final balanceStatus = (b['balancePaymentStatus'] ?? 'Pending').toString();
+            if (paymentStatus == 'Paid' && balance > 0 && balanceStatus != 'Paid') ...[
+              const SizedBox(height: 10),
+              Text('Balance: ${money(balance)} • ${balanceStatus == 'Cash Pending' ? 'Cash Pending' : 'Pending'}', style: const TextStyle(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 8),
+              Row(children: [
+                Expanded(child: OutlinedButton.icon(
+                  onPressed: () async {
+                    try {
+                      await db.collection('bookings').doc(doc.id).update({
+                        'balancePaymentMethod': 'Cash',
+                        'balancePaymentStatus': 'Cash Pending',
+                        'updatedAt': FieldValue.serverTimestamp(),
+                      });
+                      if (context.mounted) snack(context, 'Cash payment marked pending. Driver/Admin will confirm.');
+                    } catch (e) { if (context.mounted) snack(context, 'Update failed: $e'); }
+                  },
+                  icon: const Icon(Icons.money), label: const Text('CASH'),
+                )),
+                const SizedBox(width: 8),
+                Expanded(child: FilledButton.icon(
+                  onPressed: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => BalancePaymentPage(bookingId: doc.id, balanceAmount: balance)));
+                  },
+                  icon: const Icon(Icons.credit_card), label: const Text('ONLINE'),
+                )),
+              ]),
+            ],
             if (status == 'Trip Started')
               const Padding(
                 padding: EdgeInsets.only(top: 8),
@@ -1414,6 +1757,283 @@ class BookingCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class BalancePaymentPage extends StatefulWidget {
+  final String bookingId;
+  final double balanceAmount;
+  const BalancePaymentPage({super.key, required this.bookingId, required this.balanceAmount});
+
+  @override
+  State<BalancePaymentPage> createState() => _BalancePaymentPageState();
+}
+
+class _BalancePaymentPageState extends State<BalancePaymentPage> {
+  final CFPaymentGatewayService cashfree = CFPaymentGatewayService();
+  bool paying = false;
+
+  @override
+  void initState() {
+    super.initState();
+    cashfree.setCallback(_verify, _error);
+  }
+
+  Future<void> _pay() async {
+    if (paying) return;
+    setState(() => paying = true);
+    try {
+      final user = auth.currentUser;
+      if (user == null) throw Exception('Please login again.');
+      final response = await http.post(
+        Uri.parse('$backendUrl/api/create-order'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'bookingId': widget.bookingId,
+          'paymentType': 'balance',
+          'amount': widget.balanceAmount,
+          'customerId': user.uid,
+          'customerName': user.displayName ?? 'HR RIDE Customer',
+          'customerEmail': user.email ?? '',
+          'customerPhone': user.phoneNumber?.replaceFirst('+91', '') ?? '',
+          'orderNote': 'HR RIDE Balance Payment',
+        }),
+      );
+      final data = jsonDecode(response.body);
+      if (response.statusCode < 200 || response.statusCode >= 300 || data['success'] != true) {
+        throw Exception(data['error'] ?? 'Could not create balance order.');
+      }
+      final orderId = data['orderId']?.toString();
+      final sessionId = data['paymentSessionId']?.toString();
+      if (orderId == null || sessionId == null || orderId.isEmpty || sessionId.isEmpty) {
+        throw Exception('Cashfree payment session missing.');
+      }
+      await db.collection('bookings').doc(widget.bookingId).update({
+        'balanceOrderId': orderId,
+        'balancePaymentMethod': 'Online',
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      final session = CFSessionBuilder()
+          .setEnvironment(CFEnvironment.PRODUCTION)
+          .setOrderId(orderId)
+          .setPaymentSessionId(sessionId)
+          .build();
+      final payment = CFWebCheckoutPaymentBuilder().setSession(session).build();
+      cashfree.doPayment(payment);
+    } catch (e) {
+      if (mounted) { setState(() => paying = false); snack(context, 'Payment error: $e'); }
+    }
+  }
+
+  Future<void> _verify(String orderId) async {
+    try {
+      final response = await http.get(Uri.parse('$backendUrl/api/order-status/$orderId'));
+      final data = jsonDecode(response.body);
+      final status = (data['orderStatus'] ?? '').toString().toUpperCase();
+      if (status == 'PAID' || status == 'SUCCESS') {
+        await db.collection('bookings').doc(widget.bookingId).update({
+          'balancePaymentStatus': 'Paid',
+          'balancePaidAt': FieldValue.serverTimestamp(),
+          'balanceCashfreeOrderStatus': status,
+          'balanceOrderId': orderId,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        if (!mounted) return;
+        setState(() => paying = false);
+        await showDialog<void>(context: context, builder: (_) => AlertDialog(
+          title: const Text('Balance Paid ✅'),
+          content: Text('₹${widget.balanceAmount.toStringAsFixed(2)} balance payment received.'),
+          actions: [FilledButton(onPressed: () { Navigator.pop(context); Navigator.pop(context); }, child: const Text('DONE'))],
+        ));
+      } else {
+        if (mounted) { setState(() => paying = false); snack(context, 'Payment status: $status'); }
+      }
+    } catch (e) {
+      if (mounted) { setState(() => paying = false); snack(context, 'Verification failed: $e'); }
+    }
+  }
+
+  void _error(CFErrorResponse error, String orderId) {
+    if (mounted) { setState(() => paying = false); snack(context, 'Cashfree error: ${error.getMessage()}'); }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Pay Balance')),
+    body: Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(children: [
+        Card(child: Padding(padding: const EdgeInsets.all(20), child: Column(children: [
+          const Text('Remaining Balance', style: TextStyle(fontSize: 16)),
+          const SizedBox(height: 8),
+          Text(money(widget.balanceAmount), style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w900)),
+        ]))),
+        const SizedBox(height: 20),
+        const Text('Pay securely online using Cashfree.'),
+        const Spacer(),
+        SizedBox(width: double.infinity, height: 54, child: FilledButton.icon(
+          onPressed: paying ? null : _pay,
+          icon: paying ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.payment),
+          label: Text(paying ? 'PROCESSING...' : 'PAY ${money(widget.balanceAmount)} ONLINE'),
+        )),
+      ]),
+    ),
+  );
+}
+
+class VehicleAdminPage extends StatefulWidget {
+  const VehicleAdminPage({super.key});
+
+  @override
+  State<VehicleAdminPage> createState() => _VehicleAdminPageState();
+}
+
+class _VehicleAdminPageState extends State<VehicleAdminPage> {
+  final name = TextEditingController();
+  final seats = TextEditingController(text: '7');
+  final mileage = TextEditingController(text: '22');
+  final ac = TextEditingController(text: '20');
+  final nonAc = TextEditingController(text: '17');
+  final number = TextEditingController();
+  final imageUrl = TextEditingController();
+
+  @override
+  void dispose() {
+    for (final c in [name, seats, mileage, ac, nonAc, number, imageUrl]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> addVehicle() async {
+    final vehicleNameText = name.text.trim();
+    if (vehicleNameText.isEmpty) {
+      snack(context, 'Enter car name.');
+      return;
+    }
+    final doc = db.collection('vehicles').doc();
+    await doc.set({
+      'name': vehicleNameText,
+      'seats': int.tryParse(seats.text.trim()) ?? 0,
+      'mileage': double.tryParse(mileage.text.trim()) ?? 0,
+      'acRate': double.tryParse(ac.text.trim()) ?? acRate,
+      'nonAcRate': double.tryParse(nonAc.text.trim()) ?? nonAcRate,
+      'vehicleNumber': number.text.trim(),
+      'imageUrl': imageUrl.text.trim(),
+      'active': true,
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    name.clear(); number.clear(); imageUrl.clear();
+    if (mounted) snack(context, 'Vehicle added successfully.');
+  }
+
+  Future<void> editVehicle(DocumentSnapshot<Map<String, dynamic>> doc) async {
+    final d = doc.data() ?? {};
+    final n = TextEditingController(text: '${d['name'] ?? ''}');
+    final s = TextEditingController(text: '${d['seats'] ?? 7}');
+    final m = TextEditingController(text: '${d['mileage'] ?? 22}');
+    final a = TextEditingController(text: '${d['acRate'] ?? 20}');
+    final na = TextEditingController(text: '${d['nonAcRate'] ?? 17}');
+    final num = TextEditingController(text: '${d['vehicleNumber'] ?? ''}');
+    final img = TextEditingController(text: '${d['imageUrl'] ?? ''}');
+    await showDialog<void>(context: context, builder: (context) => AlertDialog(
+      title: const Text('Edit Vehicle'),
+      content: SingleChildScrollView(child: Column(children: [
+        TextField(controller: n, decoration: const InputDecoration(labelText: 'Car Name')),
+        TextField(controller: s, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Seats')),
+        TextField(controller: m, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Mileage')),
+        TextField(controller: a, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'AC Rate / km')),
+        TextField(controller: na, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Non-AC Rate / km')),
+        TextField(controller: num, decoration: const InputDecoration(labelText: 'Vehicle Number')),
+        TextField(controller: img, decoration: const InputDecoration(labelText: 'Image URL (optional)')),
+      ])),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('CANCEL')),
+        FilledButton(onPressed: () async {
+          await doc.reference.update({
+            'name': n.text.trim(), 'seats': int.tryParse(s.text) ?? 0,
+            'mileage': double.tryParse(m.text) ?? 0,
+            'acRate': double.tryParse(a.text) ?? acRate,
+            'nonAcRate': double.tryParse(na.text) ?? nonAcRate,
+            'vehicleNumber': num.text.trim(), 'imageUrl': img.text.trim(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+          if (context.mounted) Navigator.pop(context);
+        }, child: const Text('SAVE')),
+      ],
+    ));
+    for (final c in [n, s, m, a, na, num, img]) { c.dispose(); }
+  }
+
+  Future<void> toggleVehicle(DocumentSnapshot<Map<String, dynamic>> doc, bool active) async {
+    await doc.reference.update({'active': active, 'updatedAt': FieldValue.serverTimestamp()});
+  }
+
+  Future<void> deleteVehicle(DocumentSnapshot<Map<String, dynamic>> doc) async {
+    await doc.reference.delete();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Manage Vehicles')),
+      body: ListView(padding: const EdgeInsets.all(16), children: [
+        Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Add Any Car', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 10),
+          TextField(controller: name, decoration: const InputDecoration(labelText: 'Car Name', prefixIcon: Icon(Icons.directions_car))),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(child: TextField(controller: seats, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Seats'))),
+            const SizedBox(width: 8),
+            Expanded(child: TextField(controller: mileage, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Mileage'))),
+          ]),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(child: TextField(controller: ac, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'AC ₹/km'))),
+            const SizedBox(width: 8),
+            Expanded(child: TextField(controller: nonAc, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Non-AC ₹/km'))),
+          ]),
+          const SizedBox(height: 8),
+          TextField(controller: number, decoration: const InputDecoration(labelText: 'Vehicle Number')),
+          const SizedBox(height: 8),
+          TextField(controller: imageUrl, decoration: const InputDecoration(labelText: 'Car Image URL (optional)')),
+          const SizedBox(height: 12),
+          SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: addVehicle, icon: const Icon(Icons.add), label: const Text('ADD VEHICLE'))),
+        ]))),
+        const SizedBox(height: 8),
+        const Text('Your Vehicles', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+        StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: db.collection('vehicles').orderBy('createdAt', descending: true).snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.hasError) return Padding(padding: const EdgeInsets.all(16), child: Text('Error: ${snapshot.error}'));
+            if (!snapshot.hasData) return const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()));
+            final docs = snapshot.data!.docs;
+            if (docs.isEmpty) return const Padding(padding: EdgeInsets.all(16), child: Text('No custom vehicles yet.'));
+            return Column(children: docs.map((doc) {
+              final d = doc.data();
+              final active = d['active'] == true;
+              return Card(child: ListTile(
+                leading: const CircleAvatar(child: Icon(Icons.directions_car)),
+                title: Text('${d['name'] ?? 'Vehicle'}', style: const TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: Text('${d['seats'] ?? '-'} seats • AC ₹${d['acRate'] ?? '-'} • Non-AC ₹${d['nonAcRate'] ?? '-'}\n${d['vehicleNumber'] ?? ''}'),
+                isThreeLine: true,
+                trailing: PopupMenuButton<String>(onSelected: (v) async {
+                  if (v == 'edit') await editVehicle(doc);
+                  if (v == 'toggle') await toggleVehicle(doc, !active);
+                  if (v == 'delete') await deleteVehicle(doc);
+                }, itemBuilder: (_) => [
+                  const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                  PopupMenuItem(value: 'toggle', child: Text(active ? 'Disable' : 'Enable')),
+                  const PopupMenuItem(value: 'delete', child: Text('Delete')),
+                ]),
+              ));
+            }).toList());
+          },
+        ),
+      ]),
     );
   }
 }
@@ -1437,10 +2057,60 @@ class AdminPanel extends StatelessWidget {
     }
   }
 
+  Future<void> assignDriver(BuildContext context, String bookingId, Map<String, dynamic> booking) async {
+    final name = TextEditingController(text: '${booking['driverName'] ?? ''}');
+    final phone = TextEditingController(text: '${booking['driverPhone'] ?? ''}');
+    final vehicleNo = TextEditingController(text: '${booking['vehicleNumber'] ?? ''}');
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Assign Driver'),
+        content: SingleChildScrollView(child: Column(children: [
+          TextField(controller: name, decoration: const InputDecoration(labelText: 'Driver Name', prefixIcon: Icon(Icons.person))),
+          const SizedBox(height: 8),
+          TextField(controller: phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Driver Phone', prefixIcon: Icon(Icons.phone))),
+          const SizedBox(height: 8),
+          TextField(controller: vehicleNo, decoration: const InputDecoration(labelText: 'Vehicle Number', prefixIcon: Icon(Icons.confirmation_number))),
+        ])),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('CANCEL')),
+          FilledButton(onPressed: () async {
+            if (name.text.trim().isEmpty || phone.text.replaceAll(RegExp(r'\D'), '').length < 10) {
+              snack(context, 'Enter driver name and valid phone.'); return;
+            }
+            await db.collection('bookings').doc(bookingId).update({
+              'driverName': name.text.trim(),
+              'driverPhone': phone.text.trim(),
+              'vehicleNumber': vehicleNo.text.trim(),
+              'driverAssignedAt': FieldValue.serverTimestamp(),
+              'status': 'Confirmed',
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
+            if (dialogContext.mounted) Navigator.pop(dialogContext);
+            if (context.mounted) snack(context, 'Driver assigned successfully.');
+          }, child: const Text('ASSIGN')),
+        ],
+      ),
+    );
+    name.dispose(); phone.dispose(); vehicleNo.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Admin Panel')),
+      appBar: AppBar(
+        title: const Text('Admin Panel'),
+        actions: [
+          IconButton(
+            tooltip: 'Manage Vehicles',
+            icon: const Icon(Icons.directions_car_filled_rounded),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const VehicleAdminPage()),
+            ),
+          ),
+        ],
+      ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: db.collection('bookings').snapshots(),
         builder: (context, snapshot) {
@@ -1532,7 +2202,16 @@ class AdminPanel extends StatelessWidget {
                             ),
                           ],
                         ),
-                      if (status == 'Confirmed' || status == 'Trip Started')
+                      if (status == 'Confirmed' || status == 'Trip Started') ...[
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: () => assignDriver(context, docs[i].id, b),
+                            icon: const Icon(Icons.person_add_alt_1),
+                            label: Text((b['driverName'] ?? '').toString().isEmpty ? 'ASSIGN DRIVER' : 'EDIT DRIVER'),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
                         SizedBox(
                           width: double.infinity,
                           child: FilledButton.icon(
@@ -1775,7 +2454,8 @@ class _DriverModePageState extends State<DriverModePage> {
         'vehicle': b['vehicle'],
         'vehicleType': b['vehicleType'],
         'ratePerKm': b['ratePerKm'],
-        'holdingRate': holdingRate,
+        'upDownHoldingCharge': 0.0,
+        'holdingCharge': 0.0,
         'startLatitude': pos.latitude,
         'startLongitude': pos.longitude,
         'latitude': pos.latitude,
@@ -1825,22 +2505,14 @@ class _DriverModePageState extends State<DriverModePage> {
           NumberUtil.toDouble(t['liveDistanceKm']) ?? 0;
       final rate =
           NumberUtil.toDouble(t['ratePerKm']) ?? acRate;
-      final startAt = (t['startedAt'] as Timestamp?)?.toDate();
-
-      double hours = 0;
-      if (startAt != null) {
-        final elapsed = DateTime.now().difference(startAt).inMinutes;
-        hours = elapsed / 60.0;
-      }
-
       final finalDistanceFare = liveDistance * rate;
-      final finalHoldingFare = hours * holdingRate;
+      final finalHoldingFare = 0.0;
       final finalFare = finalDistanceFare + finalHoldingFare;
 
       await tripRef.update({
         'status': 'Completed',
         'endDistanceKm': liveDistance,
-        'holdingHoursFinal': hours,
+        'holdingHoursFinal': 0.0,
         'distanceFareFinal': finalDistanceFare,
         'holdingFareFinal': finalHoldingFare,
         'finalFare': finalFare,
@@ -1866,7 +2538,7 @@ class _DriverModePageState extends State<DriverModePage> {
         'completedAt': FieldValue.serverTimestamp(),
       });
 
-      // Credit 5% cashback once after a completed trip.
+      // Credit 2% cashback once after a completed trip.
       final bookingRef = db.collection('bookings').doc(bookingId);
       final bookingSnap = await bookingRef.get();
       final bookingData = bookingSnap.data() ?? <String, dynamic>{};
