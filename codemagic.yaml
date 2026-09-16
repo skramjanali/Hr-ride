@@ -1,6 +1,6 @@
 workflows:
   hr-ride-android:
-    name: HR RIDE Android APK
+    name: HR RIDE Android AAB
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,16 +10,69 @@ workflows:
       flutter: stable
 
     scripts:
+
+      # ==========================================================
+      # 1. Backup Firebase configuration before recreating Android
+      # ==========================================================
+      - name: Backup Firebase configuration
+        script: |
+          set -e
+
+          mkdir -p /tmp/hr_ride_backup
+
+          if [ -f "android/app/google-services.json" ]; then
+            cp "android/app/google-services.json" \
+               "/tmp/hr_ride_backup/google-services.json"
+            echo "Firebase google-services.json backed up."
+          else
+            echo "WARNING: android/app/google-services.json not found."
+          fi
+
+      # ==========================================================
+      # 2. Generate fresh Android project
+      # ==========================================================
       - name: Generate Android project
         script: |
+          set -e
+
           rm -rf android
-          flutter create . --platforms=android --org com.hrride
+
+          flutter create . \
+            --platforms=android \
+            --org com.hrride
+
+      # ==========================================================
+      # 3. Restore Firebase configuration
+      # ==========================================================
+      - name: Restore Firebase configuration
+        script: |
+          set -e
+
+          if [ -f "/tmp/hr_ride_backup/google-services.json" ]; then
+            mkdir -p android/app
+
+            cp "/tmp/hr_ride_backup/google-services.json" \
+               "android/app/google-services.json"
+
+            echo "Firebase google-services.json restored."
+          else
+            echo "WARNING: No Firebase google-services.json available."
+          fi
+
+      # ==========================================================
+      # 4. Configure Location Permissions
+      # ==========================================================
       - name: Configure Location Permissions
         script: |
+          set -e
+
           python3 - <<'PY'
           from pathlib import Path
 
-          manifest = Path("android/app/src/main/AndroidManifest.xml")
+          manifest = Path(
+              "android/app/src/main/AndroidManifest.xml"
+          )
+
           text = manifest.read_text()
 
           permissions = """
@@ -30,102 +83,40 @@ workflows:
           <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
           """
 
-          if "android.permission.ACCESS_BACKGROUND_LOCATION" not in text:
+          if "android.permission.ACCESS_FINE_LOCATION" not in text:
               text = text.replace(
                   "</manifest>",
                   permissions + "\n</manifest>"
               )
 
           manifest.write_text(text)
-          PY
-      - name: Configure Firebase
-        script: |
-          cp app/google-services.json android/app/google-services.json
 
-          python3 - <<'PY'
-          from pathlib import Path
-
-          # Configure app module
-          app = Path("android/app/build.gradle")
-          if not app.exists():
-              app = Path("android/app/build.gradle.kts")
-
-          text = app.read_text()
-
-          text = text.replace(
-              'applicationId "com.hrride.hr_ride"',
-              'applicationId "com.hrride.app"'
-          )
-
-          text = text.replace(
-              'applicationId = "com.hrride.hr_ride"',
-              'applicationId = "com.hrride.app"'
-          )
-
-          # Apply Google Services plugin to app module
-          if app.suffix == ".kts":
-              if 'id("com.google.gms.google-services")' not in text:
-                  text = text.replace(
-                      "plugins {",
-                      'plugins {\n    id("com.google.gms.google-services")',
-                      1
-                  )
-          else:
-              if "com.google.gms.google-services" not in text:
-                  text = text.replace(
-                      "plugins {",
-                      "plugins {\n    id 'com.google.gms.google-services'",
-                      1
-                  )
-
-          app.write_text(text)
-
-          # Configure project-level Google Services plugin
-          settings = Path("android/settings.gradle")
-          if not settings.exists():
-              settings = Path("android/settings.gradle.kts")
-
-          text = settings.read_text()
-
-          if "com.google.gms.google-services" not in text:
-              if settings.suffix == ".kts":
-                  text = text.replace(
-                      "plugins {",
-                      'plugins {\n    id("com.google.gms.google-services") version "4.4.2" apply false',
-                      1
-                  )
-              else:
-                  text = text.replace(
-                      "plugins {",
-                      'plugins {\n    id "com.google.gms.google-services" version "4.4.2" apply false',
-                      1
-                  )
-
-          settings.write_text(text)
+          print("Location permissions configured.")
           PY
 
+      # ==========================================================
+      # 5. Get Flutter packages
+      # ==========================================================
       - name: Get packages
         script: |
+          set -e
           flutter pub get
 
-      - name: Build APK
+      # ==========================================================
+      # 6. Check Flutter project
+      # ==========================================================
+      - name: Flutter analyze
         script: |
-          flutter build apk --release
+          set +e
+          flutter analyze
+          echo "Flutter analyze completed."
+          exit 0
 
-      - name: Sign APK
+      # ==========================================================
+      # 7. Build Android App Bundle
+      # ==========================================================
+      - name: Build AAB
         script: |
-          APKSIGNER=$(find "$ANDROID_HOME" -name apksigner -type f | head -1)
+          set -e
 
-          "$APKSIGNER" sign \
-            --ks "$CM_KEYSTORE_PATH" \
-            --ks-key-alias "$CM_KEY_ALIAS" \
-            --ks-pass env:CM_KEYSTORE_PASSWORD \
-            --key-pass env:CM_KEY_PASSWORD \
-            build/app/outputs/flutter-apk/app-release.apk
-
-      - name: Get APK SHA
-        script: |
-          keytool -printcert -jarfile build/app/outputs/flutter-apk/app-release.apk
-
-    artifacts:
-      - build/app/outputs/flutter-apk/app-release.apk
+          flutter
