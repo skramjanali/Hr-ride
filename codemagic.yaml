@@ -12,7 +12,7 @@ workflows:
     scripts:
 
       # ==========================================================
-      # 1. Backup Firebase configuration before recreating Android
+      # 1. Backup Firebase configuration
       # ==========================================================
       - name: Backup Firebase configuration
         script: |
@@ -22,14 +22,15 @@ workflows:
 
           if [ -f "android/app/google-services.json" ]; then
             cp "android/app/google-services.json" \
-               "/tmp/hr_ride_backup/google-services.json"
-            echo "Firebase google-services.json backed up."
+              "/tmp/hr_ride_backup/google-services.json"
+
+            echo "Firebase configuration backed up."
           else
-            echo "WARNING: android/app/google-services.json not found."
+            echo "WARNING: google-services.json not found."
           fi
 
       # ==========================================================
-      # 2. Generate fresh Android project
+      # 2. Generate Android project
       # ==========================================================
       - name: Generate Android project
         script: |
@@ -52,11 +53,11 @@ workflows:
             mkdir -p android/app
 
             cp "/tmp/hr_ride_backup/google-services.json" \
-               "android/app/google-services.json"
+              "android/app/google-services.json"
 
-            echo "Firebase google-services.json restored."
+            echo "Firebase configuration restored."
           else
-            echo "WARNING: No Firebase google-services.json available."
+            echo "WARNING: Firebase configuration not available."
           fi
 
       # ==========================================================
@@ -100,16 +101,20 @@ workflows:
       - name: Get packages
         script: |
           set -e
+
           flutter pub get
 
       # ==========================================================
-      # 6. Check Flutter project
+      # 6. Flutter analyze
       # ==========================================================
       - name: Flutter analyze
         script: |
           set +e
+
           flutter analyze
+
           echo "Flutter analyze completed."
+
           exit 0
 
       # ==========================================================
@@ -119,4 +124,49 @@ workflows:
         script: |
           set -e
 
-          flutter
+          echo "=========================================="
+          echo "Building HR RIDE Android App Bundle..."
+          echo "=========================================="
+
+          flutter build appbundle --release
+
+          echo "=========================================="
+          echo "AAB BUILD COMMAND COMPLETED"
+          echo "=========================================="
+
+      # ==========================================================
+      # 8. Verify AAB file
+      # ==========================================================
+      - name: Verify AAB
+        script: |
+          set -e
+
+          AAB_PATH="build/app/outputs/bundle/release/app-release.aab"
+
+          echo "Checking AAB..."
+
+          if [ ! -f "$AAB_PATH" ]; then
+            echo "ERROR: AAB file was NOT created."
+            echo ""
+            echo "Expected:"
+            echo "$AAB_PATH"
+            exit 1
+          fi
+
+          echo ""
+          echo "=========================================="
+          echo "HR RIDE AAB CREATED SUCCESSFULLY"
+          echo "=========================================="
+          echo ""
+
+          ls -lh "$AAB_PATH"
+
+          echo ""
+          echo "AAB path:"
+          echo "$AAB_PATH"
+
+    # ============================================================
+    # AAB Artifact
+    # ============================================================
+    artifacts:
+      - build/app/outputs/bundle/release/app-release.aab
