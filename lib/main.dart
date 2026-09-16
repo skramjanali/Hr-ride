@@ -26,7 +26,8 @@ const String adminPhone = '+16505551234';
 const double acRate = 20.0;
 const double nonAcRate = 17.0;
 const double holdingRate = 100.0;
-const double advancePercent = 0.30;
+const double advancePercent = 0.50;
+const double cashbackPercent = 0.05;
 
 const String vehicleName = 'Maruti Ertiga';
 const List<String> availableVehicles = <String>[
@@ -338,6 +339,15 @@ class HomePage extends StatelessWidget {
             ),
           ),
           HomeTile(
+            icon: Icons.account_balance_wallet,
+            title: 'My Wallet',
+            subtitle: 'Cashback rewards & wallet balance',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const WalletPage()),
+            ),
+          ),
+          HomeTile(
             icon: Icons.receipt_long,
             title: 'My Bookings',
             subtitle: 'View booking, payment and trip status',
@@ -465,6 +475,8 @@ class _BookingPageState extends State<BookingPage> {
   int? durationMinutes;
   bool calculatingRoute = false;
   bool paying = false;
+  double walletBalance = 0.0;
+  bool useWallet = true;
 
   final CFPaymentGatewayService cashfree = CFPaymentGatewayService();
 
@@ -476,6 +488,7 @@ class _BookingPageState extends State<BookingPage> {
     nameController.text = user?.displayName ?? '';
     phoneController.text = user?.phoneNumber?.replaceFirst('+91', '') ?? '';
     emailController.text = user?.email ?? '';
+    _loadWallet();
 
     cashfree.setCallback(
       _onCashfreeVerify,
@@ -493,6 +506,22 @@ class _BookingPageState extends State<BookingPage> {
     super.dispose();
   }
 
+  Future<void> _loadWallet() async {
+    final user = auth.currentUser;
+    if (user == null) return;
+    try {
+      final snap = await db.collection('users').doc(user.uid).get();
+      if (mounted) {
+        setState(() {
+          walletBalance = NumberUtil.toDouble(snap.data()?['walletBalance']) ?? 0;
+        });
+      }
+    } catch (_) {}
+  }
+
+  double get walletUsed => useWallet ? min(walletBalance, totalAmount) : 0;
+  double get payableTotal => max(0, totalAmount - walletUsed);
+
   double get rate => vehicleType == 'AC' ? acRate : nonAcRate;
 
   double get distanceFare =>
@@ -504,11 +533,9 @@ class _BookingPageState extends State<BookingPage> {
   double get totalAmount =>
       distanceFare + holdingFare;
 
-  double get advanceAmount =>
-      totalAmount * advancePercent;
+  double get advanceAmount => payableTotal * advancePercent;
 
-  double get balanceAmount =>
-      max(0, totalAmount - advanceAmount);
+  double get balanceAmount => max(0, payableTotal - advanceAmount);
 
   Future<void> calculateRoute() async {
     final pickup = pickupController.text.trim();
@@ -630,6 +657,8 @@ class _BookingPageState extends State<BookingPage> {
       'distanceFare': distanceFare,
       'holdingFare': holdingFare,
       'totalAmount': totalAmount,
+      'walletUsed': walletUsed,
+      'payableTotal': payableTotal,
       'advancePercent': advancePercent * 100,
       'advanceAmount': advanceAmount,
       'balanceAmount': balanceAmount,
@@ -757,7 +786,34 @@ class _BookingPageState extends State<BookingPage> {
       final bookingDoc = query.docs.first;
 
       if (status == 'PAID') {
+        final bookingData = bookingDoc.data();
+        if (bookingData['walletDeducted'] != true) {
+          final walletUsedNow = NumberUtil.toDouble(bookingData['walletUsed']) ?? 0;
+          if (walletUsedNow > 0) {
+            final uid = bookingData['userId']?.toString();
+            if (uid != null) {
+              final walletRef = db.collection('users').doc(uid);
+              await db.runTransaction((tx) async {
+                final ws = await tx.get(walletRef);
+                final current = NumberUtil.toDouble(ws.data()?['walletBalance']) ?? 0;
+                final deduction = min(current, walletUsedNow);
+                tx.set(walletRef, {
+                  'walletBalance': max(0, current - deduction),
+                  'walletUpdatedAt': FieldValue.serverTimestamp(),
+                }, SetOptions(merge: true));
+                tx.set(walletRef.collection('walletTransactions').doc(), {
+                  'type': 'booking_payment',
+                  'bookingId': bookingDoc.id,
+                  'amount': deduction,
+                  'description': 'Used for Booking ${bookingDoc.id}',
+                  'createdAt': FieldValue.serverTimestamp(),
+                });
+              });
+            }
+          }
+        }
         await bookingDoc.reference.update({
+          'walletDeducted': true,
           'paymentStatus': 'Paid',
           'status': 'Confirmed',
           'paymentVerifiedAt': FieldValue.serverTimestamp(),
@@ -943,6 +999,22 @@ class _BookingPageState extends State<BookingPage> {
             ),
           ),
           const SizedBox(height: 14),
+          Card(
+            child: SwitchListTile(
+              value: useWallet && walletBalance > 0,
+              onChanged: walletBalance > 0
+                  ? (v) => setState(() => useWallet = v)
+                  : null,
+              secondary: const Icon(Icons.account_balance_wallet),
+              title: const Text('Use Wallet Balance'),
+              subtitle: Text(
+                walletBalance > 0
+                    ? 'Available ${money(walletBalance)} • Save ${money(walletUsed)}'
+                    : 'No wallet balance available',
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
           FareCard(
             distanceKm: distanceKm,
             rate: rate,
@@ -952,6 +1024,13 @@ class _BookingPageState extends State<BookingPage> {
             advanceAmount: advanceAmount,
             balanceAmount: balanceAmount,
           ),
+          const SizedBox(height: 8),
+          if (walletUsed > 0)
+            Text(
+              'Wallet discount: -${money(walletUsed)} • Payable: ${money(payableTotal)}',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
@@ -968,13 +1047,13 @@ class _BookingPageState extends State<BookingPage> {
               label: Text(
                 paying
                     ? 'PROCESSING...'
-                    : 'PAY ₹${advanceAmount.toStringAsFixed(0)} ADVANCE (30%)',
+                    : 'PAY ₹${advanceAmount.toStringAsFixed(0)} ADVANCE (50%)',
               ),
             ),
           ),
           const SizedBox(height: 8),
           const Text(
-            'Payment is processed securely by Cashfree.',
+            'Booking advance is 50% and non-refundable. Payment is processed securely by Cashfree.',
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.grey),
           ),
@@ -1069,7 +1148,7 @@ class FareCard extends StatelessWidget {
             const Divider(),
             fareRow('TOTAL', money(totalAmount), bold: true),
             fareRow(
-              '30% ADVANCE',
+              '50% ADVANCE',
               money(advanceAmount),
               bold: true,
             ),
@@ -1100,6 +1179,80 @@ class FareCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class WalletPage extends StatelessWidget {
+  const WalletPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final uid = auth.currentUser?.uid;
+    if (uid == null) return const Scaffold(body: Center(child: Text('Please login again.')));
+    final walletRef = db.collection('users').doc(uid);
+    return Scaffold(
+      appBar: AppBar(title: const Text('My Wallet')),
+      body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+        stream: walletRef.snapshots(),
+        builder: (context, snap) {
+          final balance = NumberUtil.toDouble(snap.data?.data()?['walletBalance']) ?? 0;
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(22),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Icon(Icons.account_balance_wallet, size: 34),
+                    const SizedBox(height: 10),
+                    const Text('Wallet Balance'),
+                    Text(money(balance), style: const TextStyle(fontSize: 34, fontWeight: FontWeight.bold)),
+                  ]),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.card_giftcard),
+                  title: const Text('Get 5% Cashback'),
+                  subtitle: const Text('Cashback is credited after your trip is completed.'),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.savings),
+                  title: const Text('Use Wallet on Next Booking'),
+                  subtitle: const Text('Wallet balance can reduce your next booking amount.'),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text('Wallet Transactions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                stream: walletRef.collection('walletTransactions').orderBy('createdAt', descending: true).limit(30).snapshots(),
+                builder: (context, txSnap) {
+                  if (!txSnap.hasData || txSnap.data!.docs.isEmpty) {
+                    return const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('No wallet transactions yet.')));
+                  }
+                  return Column(children: txSnap.data!.docs.map((d) {
+                    final x = d.data();
+                    final amount = NumberUtil.toDouble(x['amount']) ?? 0;
+                    final type = (x['type'] ?? '').toString();
+                    final credit = type == 'cashback' || type == 'add_money';
+                    return Card(child: ListTile(
+                      leading: Icon(credit ? Icons.arrow_downward : Icons.arrow_upward),
+                      title: Text((x['description'] ?? 'Wallet transaction').toString()),
+                      trailing: Text('${credit ? '+' : '-'}${money(amount)}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    ));
+                  }).toList());
+                },
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -1712,6 +1865,37 @@ class _DriverModePageState extends State<DriverModePage> {
         ),
         'completedAt': FieldValue.serverTimestamp(),
       });
+
+      // Credit 5% cashback once after a completed trip.
+      final bookingRef = db.collection('bookings').doc(bookingId);
+      final bookingSnap = await bookingRef.get();
+      final bookingData = bookingSnap.data() ?? <String, dynamic>{};
+      if (bookingData['cashbackCredited'] != true) {
+        final uid = bookingData['userId']?.toString();
+        final cashback = finalFare * cashbackPercent;
+        if (uid != null && cashback > 0) {
+          final walletRef = db.collection('users').doc(uid);
+          await db.runTransaction((tx) async {
+            final walletSnap = await tx.get(walletRef);
+            final current = NumberUtil.toDouble(walletSnap.data()?['walletBalance']) ?? 0;
+            tx.set(walletRef, {
+              'walletBalance': current + cashback,
+              'walletUpdatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+            tx.set(walletRef.collection('walletTransactions').doc(), {
+              'type': 'cashback',
+              'bookingId': bookingId,
+              'amount': cashback,
+              'description': 'Cashback - Booking $bookingId',
+              'createdAt': FieldValue.serverTimestamp(),
+            });
+          });
+          await bookingRef.update({
+            'cashbackCredited': true,
+            'cashbackAmount': cashback,
+          });
+        }
+      }
 
       _liveDistanceKm = 0.0;
       _lastTripPosition = null;
