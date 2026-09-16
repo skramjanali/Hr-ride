@@ -1,4 +1,3 @@
-
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
@@ -19,7 +18,7 @@ import 'package:latlong2/latlong.dart';
 
 const String backendUrl = 'https://hr-ride.onrender.com';
 
-// Change this to the real admin phone number before production.
+// Change this to your real admin phone number.
 const String adminPhone = '+16505551234';
 
 const double acRate = 20.0;
@@ -37,6 +36,7 @@ final GoogleSignIn googleSignIn = GoogleSignIn.instance;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
   await Firebase.initializeApp();
 
   try {
@@ -44,10 +44,7 @@ Future<void> main() async {
       serverClientId:
           '383829745014-1m58ttp9dj4dqike8ot15uva7vnbajua.apps.googleusercontent.com',
     );
-  } catch (_) {
-    // Google sign-in initialization can be skipped on platforms where it
-    // has already been initialized by the plugin.
-  }
+  } catch (_) {}
 
   runApp(const HRRideApp());
 }
@@ -98,12 +95,16 @@ class AuthGate extends StatelessWidget {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+            body: Center(
+              child: CircularProgressIndicator(),
+            ),
           );
         }
+
         if (snapshot.data == null) {
           return const LoginPage();
         }
+
         return const HomePage();
       },
     );
@@ -134,9 +135,19 @@ class _LoginPageState extends State<LoginPage> {
 
   String normalizedPhone() {
     final raw = phoneController.text.replaceAll(RegExp(r'\D'), '');
-    if (raw.length == 10) return '+91$raw';
-    if (raw.startsWith('91') && raw.length == 12) return '+$raw';
-    if (raw.startsWith('+')) return raw;
+
+    if (raw.length == 10) {
+      return '+91$raw';
+    }
+
+    if (raw.startsWith('91') && raw.length == 12) {
+      return '+$raw';
+    }
+
+    if (raw.startsWith('+')) {
+      return raw;
+    }
+
     return '+$raw';
   }
 
@@ -144,7 +155,10 @@ class _LoginPageState extends State<LoginPage> {
     final phone = normalizedPhone();
 
     if (phone.replaceAll(RegExp(r'\D'), '').length < 10) {
-      snack(context, 'Enter a valid 10-digit phone number.');
+      snack(
+        context,
+        'Enter a valid 10-digit phone number.',
+      );
       return;
     }
 
@@ -156,22 +170,33 @@ class _LoginPageState extends State<LoginPage> {
         try {
           await auth.signInWithCredential(credential);
         } catch (e) {
-          if (mounted) snack(context, 'Auto verification failed: $e');
+          if (mounted) {
+            snack(
+              context,
+              'Auto verification failed: $e',
+            );
+          }
         }
       },
       verificationFailed: (e) {
         if (mounted) {
           setState(() => loading = false);
-          snack(context, e.message ?? 'Phone verification failed.');
+
+          snack(
+            context,
+            e.message ?? 'Phone verification failed.',
+          );
         }
       },
       codeSent: (id, _) {
         if (!mounted) return;
+
         setState(() {
           verificationId = id;
           otpSent = true;
           loading = false;
         });
+
         snack(context, 'OTP sent.');
       },
       codeAutoRetrievalTimeout: (id) {
@@ -181,7 +206,8 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> verifyOtp() async {
-    if (verificationId == null || otpController.text.trim().length < 6) {
+    if (verificationId == null ||
+        otpController.text.trim().length < 6) {
       snack(context, 'Enter the OTP.');
       return;
     }
@@ -193,30 +219,50 @@ class _LoginPageState extends State<LoginPage> {
         verificationId: verificationId!,
         smsCode: otpController.text.trim(),
       );
+
       await auth.signInWithCredential(credential);
     } on FirebaseAuthException catch (e) {
-      snack(context, e.message ?? 'Invalid OTP.');
+      snack(
+        context,
+        e.message ?? 'Invalid OTP.',
+      );
     } finally {
-      if (mounted) setState(() => loading = false);
+      if (mounted) {
+        setState(() => loading = false);
+      }
     }
   }
 
   Future<void> googleLogin() async {
     setState(() => loading = true);
+
     try {
       final account = await googleSignIn.authenticate();
+
       final idToken = account.authentication.idToken;
 
       if (idToken == null) {
-        throw Exception('Google ID token was not returned.');
+        throw Exception(
+          'Google ID token was not returned.',
+        );
       }
 
-      final credential = GoogleAuthProvider.credential(idToken: idToken);
+      final credential = GoogleAuthProvider.credential(
+        idToken: idToken,
+      );
+
       await auth.signInWithCredential(credential);
     } catch (e) {
-      if (mounted) snack(context, 'Google login failed: $e');
+      if (mounted) {
+        snack(
+          context,
+          'Google login failed: $e',
+        );
+      }
     } finally {
-      if (mounted) setState(() => loading = false);
+      if (mounted) {
+        setState(() => loading = false);
+      }
     }
   }
 
@@ -228,11 +274,18 @@ class _LoginPageState extends State<LoginPage> {
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 500),
+              constraints: const BoxConstraints(
+                maxWidth: 500,
+              ),
               child: Column(
                 children: [
-                  const Icon(Icons.local_taxi, size: 76),
+                  const Icon(
+                    Icons.local_taxi,
+                    size: 76,
+                  ),
+
                   const SizedBox(height: 16),
+
                   const Text(
                     'HR RIDE',
                     style: TextStyle(
@@ -240,9 +293,15 @@ class _LoginPageState extends State<LoginPage> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+
                   const SizedBox(height: 6),
-                  const Text('Premium Cab Booking'),
+
+                  const Text(
+                    'Premium Cab Booking',
+                  ),
+
                   const SizedBox(height: 32),
+
                   TextField(
                     controller: phoneController,
                     keyboardType: TextInputType.phone,
@@ -251,7 +310,9 @@ class _LoginPageState extends State<LoginPage> {
                       prefixText: '+91 ',
                     ),
                   ),
+
                   const SizedBox(height: 12),
+
                   if (otpSent)
                     TextField(
                       controller: otpController,
@@ -261,6 +322,7 @@ class _LoginPageState extends State<LoginPage> {
                         labelText: 'OTP',
                       ),
                     ),
+
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton(
@@ -278,11 +340,17 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                   ),
+
                   const SizedBox(height: 12),
+
                   OutlinedButton.icon(
-                    onPressed: loading ? null : googleLogin,
+                    onPressed: loading
+                        ? null
+                        : googleLogin,
                     icon: const Icon(Icons.login),
-                    label: const Text('Continue with Google'),
+                    label: const Text(
+                      'Continue with Google',
+                    ),
                   ),
                 ],
               ),
@@ -297,7 +365,8 @@ class _LoginPageState extends State<LoginPage> {
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
-  bool get isAdmin => auth.currentUser?.phoneNumber == adminPhone;
+  bool get isAdmin =>
+      auth.currentUser?.phoneNumber == adminPhone;
 
   @override
   Widget build(BuildContext context) {
@@ -310,6 +379,7 @@ class HomePage extends StatelessWidget {
           IconButton(
             onPressed: () async {
               await auth.signOut();
+
               try {
                 await googleSignIn.signOut();
               } catch (_) {}
@@ -322,44 +392,69 @@ class HomePage extends StatelessWidget {
         padding: const EdgeInsets.all(18),
         children: [
           _homeHeader(user),
+
           const SizedBox(height: 18),
+
           HomeTile(
             icon: Icons.local_taxi,
             title: 'Book HR RIDE',
             subtitle: 'Book your Maruti Ertiga',
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const BookingPage()),
-            ),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const BookingPage(),
+                ),
+              );
+            },
           ),
+
           HomeTile(
             icon: Icons.receipt_long,
             title: 'My Bookings',
-            subtitle: 'View booking, payment and trip status',
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const MyBookingsPage()),
-            ),
+            subtitle:
+                'View booking, payment and trip status',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const MyBookingsPage(),
+                ),
+              );
+            },
           ),
+
           if (isAdmin)
             HomeTile(
               icon: Icons.admin_panel_settings,
               title: 'Admin Panel',
-              subtitle: 'Accept or reject bookings',
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const AdminPanel()),
-              ),
+              subtitle:
+                  'Accept or reject bookings',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const AdminPanel(),
+                  ),
+                );
+              },
             ),
+
           if (isAdmin)
             HomeTile(
               icon: Icons.directions_car,
               title: 'Driver Mode',
-              subtitle: 'Start trip and share live location',
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const DriverModePage()),
-              ),
+              subtitle:
+                  'Start trip and share live location',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        const DriverModePage(),
+                  ),
+                );
+              },
             ),
         ],
       ),
@@ -376,26 +471,37 @@ class HomePage extends StatelessWidget {
               radius: 28,
               child: Icon(Icons.person),
             ),
+
             const SizedBox(width: 14),
+
             Expanded(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
                 children: [
                   Text(
                     'Welcome',
-                    style: TextStyle(color: Colors.grey.shade400),
+                    style: TextStyle(
+                      color: Colors.grey.shade400,
+                    ),
                   ),
+
                   Text(
                     user?.displayName?.isNotEmpty == true
                         ? user!.displayName!
-                        : user?.phoneNumber ?? 'HR RIDE Customer',
+                        : user?.phoneNumber ??
+                            'HR RIDE Customer',
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+
                   const SizedBox(height: 4),
-                  Text('$vehicleName • $serviceRegion'),
+
+                  Text(
+                    '$vehicleName • $serviceRegion',
+                  ),
                 ],
               ),
             ),
@@ -425,13 +531,19 @@ class HomeTile extends StatelessWidget {
     return Card(
       child: ListTile(
         contentPadding: const EdgeInsets.all(14),
-        leading: CircleAvatar(child: Icon(icon)),
+        leading: CircleAvatar(
+          child: Icon(icon),
+        ),
         title: Text(
           title,
-          style: const TextStyle(fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
         ),
         subtitle: Text(subtitle),
-        trailing: const Icon(Icons.chevron_right),
+        trailing: const Icon(
+          Icons.chevron_right,
+        ),
         onTap: onTap,
       ),
     );
@@ -442,7 +554,8 @@ class BookingPage extends StatefulWidget {
   const BookingPage({super.key});
 
   @override
-  State<BookingPage> createState() => _BookingPageState();
+  State<BookingPage> createState() =>
+      _BookingPageState();
 }
 
 class _BookingPageState extends State<BookingPage> {
@@ -453,24 +566,39 @@ class _BookingPageState extends State<BookingPage> {
   final dropController = TextEditingController();
 
   String vehicleType = 'AC';
-  DateTime travelDate = DateTime.now().add(const Duration(days: 1));
+
+  DateTime travelDate =
+      DateTime.now().add(
+    const Duration(days: 1),
+  );
+
   int holdingHours = 0;
 
   double? distanceKm;
   int? durationMinutes;
+
   bool calculatingRoute = false;
   bool paying = false;
 
-  final CFPaymentGatewayService cashfree = CFPaymentGatewayService();
+  final CFPaymentGatewayService cashfree =
+      CFPaymentGatewayService();
 
   @override
   void initState() {
     super.initState();
 
     final user = auth.currentUser;
-    nameController.text = user?.displayName ?? '';
-    phoneController.text = user?.phoneNumber?.replaceFirst('+91', '') ?? '';
-    emailController.text = user?.email ?? '';
+
+    nameController.text =
+        user?.displayName ?? '';
+
+    phoneController.text =
+        user?.phoneNumber
+                ?.replaceFirst('+91', '') ??
+            '';
+
+    emailController.text =
+        user?.email ?? '';
 
     cashfree.setCallback(
       _onCashfreeVerify,
@@ -485,10 +613,14 @@ class _BookingPageState extends State<BookingPage> {
     emailController.dispose();
     pickupController.dispose();
     dropController.dispose();
+
     super.dispose();
   }
 
-  double get rate => vehicleType == 'AC' ? acRate : nonAcRate;
+  double get rate =>
+      vehicleType == 'AC'
+          ? acRate
+          : nonAcRate;
 
   double get distanceFare =>
       (distanceKm ?? 0) * rate;
@@ -503,42 +635,75 @@ class _BookingPageState extends State<BookingPage> {
       totalAmount * advancePercent;
 
   double get balanceAmount =>
-      max(0, totalAmount - advanceAmount);
+      max(
+        0,
+        totalAmount - advanceAmount,
+      );
 
   Future<void> calculateRoute() async {
-    final pickup = pickupController.text.trim();
-    final drop = dropController.text.trim();
+    final pickup =
+        pickupController.text.trim();
+
+    final drop =
+        dropController.text.trim();
 
     if (pickup.isEmpty || drop.isEmpty) {
-      snack(context, 'Enter pickup and drop location.');
+      snack(
+        context,
+        'Enter pickup and drop location.',
+      );
       return;
     }
 
-    setState(() => calculatingRoute = true);
+    setState(() {
+      calculatingRoute = true;
+    });
 
     try {
-      final response = await http.post(
-        Uri.parse('$backendUrl/api/route-distance'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'pickup': pickup,
-          'drop': drop,
-        }),
-      );
+      final response = await http
+          .post(
+            Uri.parse(
+              '$backendUrl/api/route-distance',
+            ),
+            headers: {
+              'Content-Type':
+                  'application/json',
+            },
+            body: jsonEncode({
+              'pickup': pickup,
+              'drop': drop,
+            }),
+          )
+          .timeout(
+            const Duration(seconds: 25),
+          );
 
-      final data = jsonDecode(response.body);
+      final data =
+          jsonDecode(response.body);
 
       if (response.statusCode < 200 ||
           response.statusCode >= 300 ||
           data['success'] != true) {
-        throw Exception(data['error'] ?? 'Route calculation failed.');
+        throw Exception(
+          data['error'] ??
+              'Route calculation failed.',
+        );
       }
 
-      final km = NumberUtil.toDouble(data['distanceKm']);
-      final minutes = NumberUtil.toInt(data['durationMinutes']);
+      final km =
+          NumberUtil.toDouble(
+        data['distanceKm'],
+      );
+
+      final minutes =
+          NumberUtil.toInt(
+        data['durationMinutes'],
+      );
 
       if (km == null || km <= 0) {
-        throw Exception('Invalid distance returned by server.');
+        throw Exception(
+          'Invalid distance returned by server.',
+        );
       }
 
       setState(() {
@@ -552,17 +717,27 @@ class _BookingPageState extends State<BookingPage> {
         '${minutes != null ? ' • $minutes min' : ''}',
       );
     } catch (e) {
-      snack(context, 'Route error: $e');
+      snack(
+        context,
+        'Route error: $e',
+      );
     } finally {
-      if (mounted) setState(() => calculatingRoute = false);
+      if (mounted) {
+        setState(() {
+          calculatingRoute = false;
+        });
+      }
     }
   }
 
   Future<void> chooseDate() async {
-    final picked = await showDatePicker(
+    final picked =
+        await showDatePicker(
       context: context,
       firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      lastDate: DateTime.now().add(
+        const Duration(days: 365),
+      ),
       initialDate: travelDate,
     );
 
@@ -583,39 +758,67 @@ class _BookingPageState extends State<BookingPage> {
     final user = auth.currentUser;
 
     if (user == null) {
-      throw Exception('Please login again.');
+      throw Exception(
+        'Please login again.',
+      );
     }
 
-    if (nameController.text.trim().isEmpty) {
-      throw Exception('Enter customer name.');
+    if (nameController.text
+        .trim()
+        .isEmpty) {
+      throw Exception(
+        'Enter customer name.',
+      );
     }
 
-    if (phoneController.text.replaceAll(RegExp(r'\D'), '').length < 10) {
-      throw Exception('Enter a valid phone number.');
+    if (phoneController.text
+            .replaceAll(
+              RegExp(r'\D'),
+              '',
+            )
+            .length <
+        10) {
+      throw Exception(
+        'Enter a valid phone number.',
+      );
     }
 
-    if (distanceKm == null || distanceKm! <= 0) {
-      throw Exception('Calculate route distance first.');
+    if (distanceKm == null ||
+        distanceKm! <= 0) {
+      throw Exception(
+        'Calculate route distance first.',
+      );
     }
 
     if (totalAmount < 1) {
-      throw Exception('Booking amount must be at least ₹1.');
+      throw Exception(
+        'Booking amount must be at least ₹1.',
+      );
     }
 
-    final bookingRef = db.collection('bookings').doc();
+    final bookingRef =
+        db.collection('bookings').doc();
 
     await bookingRef.set({
       'userId': user.uid,
-      'userName': nameController.text.trim(),
-      'userPhone': normalizeCustomerPhone(phoneController.text),
-      'userEmail': emailController.text.trim(),
-      'pickup': pickupController.text.trim(),
-      'drop': dropController.text.trim(),
+      'userName':
+          nameController.text.trim(),
+      'userPhone':
+          normalizeCustomerPhone(
+        phoneController.text,
+      ),
+      'userEmail':
+          emailController.text.trim(),
+      'pickup':
+          pickupController.text.trim(),
+      'drop':
+          dropController.text.trim(),
       'vehicle': vehicleName,
       'mileage': vehicleMileage,
       'region': serviceRegion,
       'vehicleType': vehicleType,
-      'travelDate': Timestamp.fromDate(travelDate),
+      'travelDate':
+          Timestamp.fromDate(travelDate),
       'distanceKm': distanceKm,
       'durationMinutes': durationMinutes,
       'chargeableKm': distanceKm,
@@ -625,14 +828,16 @@ class _BookingPageState extends State<BookingPage> {
       'distanceFare': distanceFare,
       'holdingFare': holdingFare,
       'totalAmount': totalAmount,
-      'advancePercent': advancePercent * 100,
+      'advancePercent':
+          advancePercent * 100,
       'advanceAmount': advanceAmount,
       'balanceAmount': balanceAmount,
       'paymentStatus': 'Pending',
       'paymentId': '',
       'orderId': '',
       'status': 'Payment Pending',
-      'createdAt': FieldValue.serverTimestamp(),
+      'createdAt':
+          FieldValue.serverTimestamp(),
     });
 
     return bookingRef.id;
@@ -641,68 +846,114 @@ class _BookingPageState extends State<BookingPage> {
   Future<void> startPayment() async {
     if (paying) return;
 
-    setState(() => paying = true);
+    setState(() {
+      paying = true;
+    });
 
     String? bookingId;
 
     try {
-      bookingId = await createBooking();
+      bookingId =
+          await createBooking();
 
-      final user = auth.currentUser!;
-      final response = await http.post(
-        Uri.parse('$backendUrl/api/create-order'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'bookingId': bookingId,
-          'amount': double.parse(advanceAmount.toStringAsFixed(2)),
-          'customerId': user.uid,
-          'customerName': nameController.text.trim(),
-          'customerEmail': emailController.text.trim(),
-          'customerPhone': normalizeCustomerPhone(phoneController.text),
-          'orderNote': 'HR RIDE Booking Advance - $bookingId',
-        }),
-      );
+      final user =
+          auth.currentUser!;
 
-      final data = jsonDecode(response.body);
+      final response = await http
+          .post(
+            Uri.parse(
+              '$backendUrl/api/create-order',
+            ),
+            headers: {
+              'Content-Type':
+                  'application/json',
+            },
+            body: jsonEncode({
+              'bookingId': bookingId,
+              'amount': double.parse(
+                advanceAmount
+                    .toStringAsFixed(2),
+              ),
+              'customerId': user.uid,
+              'customerName':
+                  nameController.text.trim(),
+              'customerEmail':
+                  emailController.text.trim(),
+              'customerPhone':
+                  normalizeCustomerPhone(
+                phoneController.text,
+              ),
+              'orderNote':
+                  'HR RIDE Booking Advance - $bookingId',
+            }),
+          )
+          .timeout(
+            const Duration(seconds: 30),
+          );
+
+      final data =
+          jsonDecode(response.body);
 
       if (response.statusCode < 200 ||
           response.statusCode >= 300 ||
           data['success'] != true) {
-        throw Exception(data['error'] ?? 'Unable to create payment order.');
+        throw Exception(
+          data['error'] ??
+              'Unable to create payment order.',
+        );
       }
 
-      final orderId = data['orderId']?.toString();
+      final orderId =
+          data['orderId']?.toString();
+
       final paymentSessionId =
-          data['paymentSessionId']?.toString();
+          data['paymentSessionId']
+              ?.toString();
 
       if (orderId == null ||
           orderId.isEmpty ||
           paymentSessionId == null ||
           paymentSessionId.isEmpty) {
-        throw Exception('Cashfree payment session was not returned.');
+        throw Exception(
+          'Cashfree payment session was not returned.',
+        );
       }
 
-      await db.collection('bookings').doc(bookingId).update({
+      await db
+          .collection('bookings')
+          .doc(bookingId)
+          .update({
         'orderId': orderId,
-        'paymentSessionId': paymentSessionId,
+        'paymentSessionId':
+            paymentSessionId,
         'paymentStatus': 'Created',
       });
 
-      final session = CFSessionBuilder()
-          .setEnvironment(CFEnvironment.SANDBOX)
-          .setOrderId(orderId)
-          .setPaymentSessionId(paymentSessionId)
-          .build();
+      // PRODUCTION CASHFREE
+      final session =
+          CFSessionBuilder()
+              .setEnvironment(
+                CFEnvironment.PRODUCTION,
+              )
+              .setOrderId(orderId)
+              .setPaymentSessionId(
+                paymentSessionId,
+              )
+              .build();
 
-      final payment = CFDropCheckoutPaymentBuilder()
-          .setSession(session)
-          .build();
+      final payment =
+          CFDropCheckoutPaymentBuilder()
+              .setSession(session)
+              .build();
 
       cashfree.doPayment(payment);
     } catch (e) {
       if (bookingId != null) {
         try {
-          await db.collection('bookings').doc(bookingId).update({
+          await db
+              .collection('bookings')
+              .doc(bookingId)
+              .update({
             'paymentStatus': 'Failed',
             'paymentError': e.toString(),
           });
@@ -710,62 +961,95 @@ class _BookingPageState extends State<BookingPage> {
       }
 
       if (mounted) {
-        setState(() => paying = false);
-        snack(context, 'Payment setup failed: $e');
+        setState(() {
+          paying = false;
+        });
+
+        snack(
+          context,
+          'Payment setup failed: $e',
+        );
       }
     }
   }
 
-  Future<void> _onCashfreeVerify(String orderId) async {
+  Future<void> _onCashfreeVerify(
+    String orderId,
+  ) async {
     if (!mounted) return;
 
     try {
-      final response = await http.get(
-        Uri.parse(
-          '$backendUrl/api/order-status/${Uri.encodeComponent(orderId)}',
-        ),
-      );
+      final response = await http
+          .get(
+            Uri.parse(
+              '$backendUrl/api/order-status/'
+              '${Uri.encodeComponent(orderId)}',
+            ),
+          )
+          .timeout(
+            const Duration(seconds: 20),
+          );
 
-      final data = jsonDecode(response.body);
+      final data =
+          jsonDecode(response.body);
 
       if (response.statusCode < 200 ||
           response.statusCode >= 300 ||
           data['success'] != true) {
-        throw Exception(data['error'] ?? 'Unable to verify payment.');
+        throw Exception(
+          data['error'] ??
+              'Unable to verify payment.',
+        );
       }
 
       final status =
-          (data['orderStatus'] ?? 'UNKNOWN').toString().toUpperCase();
+          (data['orderStatus'] ??
+                  'UNKNOWN')
+              .toString()
+              .toUpperCase();
 
       final query = await db
           .collection('bookings')
-          .where('orderId', isEqualTo: orderId)
+          .where(
+            'orderId',
+            isEqualTo: orderId,
+          )
           .limit(1)
           .get();
 
       if (query.docs.isEmpty) {
-        throw Exception('Booking for payment order was not found.');
+        throw Exception(
+          'Booking for payment order was not found.',
+        );
       }
 
-      final bookingDoc = query.docs.first;
+      final bookingDoc =
+          query.docs.first;
 
       if (status == 'PAID') {
         await bookingDoc.reference.update({
           'paymentStatus': 'Paid',
           'status': 'Confirmed',
-          'paymentVerifiedAt': FieldValue.serverTimestamp(),
+          'paymentVerifiedAt':
+              FieldValue.serverTimestamp(),
           'cashfreeOrderStatus': status,
         });
 
         if (!mounted) return;
-        setState(() => paying = false);
+
+        setState(() {
+          paying = false;
+        });
 
         await showDialog(
           context: context,
           builder: (_) => AlertDialog(
-            title: const Text('Payment Successful'),
+            title: const Text(
+              'Payment Successful',
+            ),
             content: Text(
-              '₹${advanceAmount.toStringAsFixed(2)} advance payment received.\n\n'
+              '₹${advanceAmount.toStringAsFixed(2)} '
+              'advance payment received.\n\n'
               'Booking ID: ${bookingDoc.id}\n'
               'Order ID: $orderId',
             ),
@@ -787,21 +1071,39 @@ class _BookingPageState extends State<BookingPage> {
         });
 
         if (!mounted) return;
-        setState(() => paying = false);
-        snack(context, 'Payment status: $status');
+
+        setState(() {
+          paying = false;
+        });
+
+        snack(
+          context,
+          'Payment status: $status',
+        );
       }
     } catch (e) {
       if (mounted) {
-        setState(() => paying = false);
-        snack(context, 'Payment verification failed: $e');
+        setState(() {
+          paying = false;
+        });
+
+        snack(
+          context,
+          'Payment verification failed: $e',
+        );
       }
     }
   }
 
-  void _onCashfreeError(dynamic error, String orderId) {
+  void _onCashfreeError(
+    dynamic error,
+    String orderId,
+  ) {
     if (!mounted) return;
 
-    setState(() => paying = false);
+    setState(() {
+      paying = false;
+    });
 
     snack(
       context,
@@ -812,12 +1114,16 @@ class _BookingPageState extends State<BookingPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Book HR RIDE')),
+      appBar: AppBar(
+        title: const Text('Book HR RIDE'),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           const InfoCard(),
+
           const SizedBox(height: 16),
+
           TextField(
             controller: nameController,
             decoration: const InputDecoration(
@@ -825,150 +1131,254 @@ class _BookingPageState extends State<BookingPage> {
               prefixIcon: Icon(Icons.person),
             ),
           ),
+
           const SizedBox(height: 10),
+
           TextField(
             controller: phoneController,
-            keyboardType: TextInputType.phone,
-            decoration: const InputDecoration(
+            keyboardType:
+                TextInputType.phone,
+            decoration:
+                const InputDecoration(
               labelText: 'Phone Number',
-              prefixIcon: Icon(Icons.phone),
+              prefixIcon:
+                  Icon(Icons.phone),
             ),
           ),
+
           const SizedBox(height: 10),
+
           TextField(
             controller: emailController,
-            keyboardType: TextInputType.emailAddress,
-            decoration: const InputDecoration(
-              labelText: 'Email (optional)',
-              prefixIcon: Icon(Icons.email),
+            keyboardType:
+                TextInputType.emailAddress,
+            decoration:
+                const InputDecoration(
+              labelText:
+                  'Email (optional)',
+              prefixIcon:
+                  Icon(Icons.email),
             ),
           ),
+
           const SizedBox(height: 10),
+
           TextField(
             controller: pickupController,
-            decoration: const InputDecoration(
-              labelText: 'Pickup Location',
-              prefixIcon: Icon(Icons.my_location),
+            decoration:
+                const InputDecoration(
+              labelText:
+                  'Pickup Location',
+              prefixIcon:
+                  Icon(Icons.my_location),
             ),
           ),
+
           const SizedBox(height: 10),
+
           TextField(
             controller: dropController,
-            decoration: const InputDecoration(
-              labelText: 'Drop Location',
-              prefixIcon: Icon(Icons.location_on),
+            decoration:
+                const InputDecoration(
+              labelText:
+                  'Drop Location',
+              prefixIcon:
+                  Icon(Icons.location_on),
             ),
           ),
+
           const SizedBox(height: 10),
+
           FilledButton.icon(
-            onPressed: calculatingRoute ? null : calculateRoute,
+            onPressed:
+                calculatingRoute
+                    ? null
+                    : calculateRoute,
             icon: calculatingRoute
                 ? const SizedBox(
                     height: 18,
                     width: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+                    child:
+                        CircularProgressIndicator(
+                      strokeWidth: 2,
+                    ),
                   )
-                : const Icon(Icons.route),
+                : const Icon(
+                    Icons.route,
+                  ),
             label: Text(
-              calculatingRoute ? 'CALCULATING...' : 'CALCULATE DISTANCE',
+              calculatingRoute
+                  ? 'CALCULATING...'
+                  : 'CALCULATE DISTANCE',
             ),
           ),
+
           const SizedBox(height: 14),
+
           DropdownButtonFormField<String>(
             value: vehicleType,
-            decoration: const InputDecoration(
-              labelText: 'Vehicle Type',
+            decoration:
+                const InputDecoration(
+              labelText:
+                  'Vehicle Type',
             ),
             items: const [
-              DropdownMenuItem(value: 'AC', child: Text('AC')),
-              DropdownMenuItem(value: 'Non-AC', child: Text('Non-AC')),
+              DropdownMenuItem(
+                value: 'AC',
+                child: Text('AC'),
+              ),
+              DropdownMenuItem(
+                value: 'Non-AC',
+                child: Text('Non-AC'),
+              ),
             ],
             onChanged: (value) {
-              if (value != null) setState(() => vehicleType = value);
+              if (value != null) {
+                setState(() {
+                  vehicleType = value;
+                });
+              }
             },
           ),
+
           const SizedBox(height: 10),
+
           ListTile(
-            tileColor: const Color(0xFF111722),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
+            tileColor:
+                const Color(0xFF111722),
+            shape:
+                RoundedRectangleBorder(
+              borderRadius:
+                  BorderRadius.circular(14),
             ),
-            leading: const Icon(Icons.calendar_month),
-            title: const Text('Travel Date'),
-            subtitle: Text(formatDate(travelDate)),
+            leading: const Icon(
+              Icons.calendar_month,
+            ),
+            title:
+                const Text('Travel Date'),
+            subtitle:
+                Text(formatDate(travelDate)),
             trailing: TextButton(
               onPressed: chooseDate,
-              child: const Text('CHANGE'),
+              child:
+                  const Text('CHANGE'),
             ),
           ),
+
           const SizedBox(height: 10),
+
           Card(
             child: Column(
               children: [
                 const ListTile(
-                  title: Text('Holding / Waiting'),
-                  subtitle: Text('₹100 per hour'),
+                  title:
+                      Text('Holding / Waiting'),
+                  subtitle:
+                      Text('₹100 per hour'),
                 ),
+
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisAlignment:
+                      MainAxisAlignment.center,
                   children: [
                     IconButton(
-                      onPressed: holdingHours > 0
-                          ? () => setState(() => holdingHours--)
-                          : null,
-                      icon: const Icon(Icons.remove_circle_outline),
-                    ),
-                    Text(
-                      '$holdingHours hour(s)',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                      onPressed:
+                          holdingHours > 0
+                              ? () => setState(
+                                    () =>
+                                        holdingHours--,
+                                  )
+                              : null,
+                      icon: const Icon(
+                        Icons
+                            .remove_circle_outline,
                       ),
                     ),
+
+                    Text(
+                      '$holdingHours hour(s)',
+                      style:
+                          const TextStyle(
+                        fontSize: 18,
+                        fontWeight:
+                            FontWeight.bold,
+                      ),
+                    ),
+
                     IconButton(
-                      onPressed: () => setState(() => holdingHours++),
-                      icon: const Icon(Icons.add_circle_outline),
+                      onPressed: () =>
+                          setState(
+                        () =>
+                            holdingHours++,
+                      ),
+                      icon: const Icon(
+                        Icons
+                            .add_circle_outline,
+                      ),
                     ),
                   ],
                 ),
               ],
             ),
           ),
+
           const SizedBox(height: 14),
+
           FareCard(
             distanceKm: distanceKm,
             rate: rate,
-            distanceFare: distanceFare,
-            holdingFare: holdingFare,
-            totalAmount: totalAmount,
-            advanceAmount: advanceAmount,
-            balanceAmount: balanceAmount,
+            distanceFare:
+                distanceFare,
+            holdingFare:
+                holdingFare,
+            totalAmount:
+                totalAmount,
+            advanceAmount:
+                advanceAmount,
+            balanceAmount:
+                balanceAmount,
           ),
+
           const SizedBox(height: 16),
+
           SizedBox(
             width: double.infinity,
             height: 56,
             child: FilledButton.icon(
-              onPressed: paying || distanceKm == null ? null : startPayment,
+              onPressed:
+                  paying ||
+                          distanceKm == null
+                      ? null
+                      : startPayment,
               icon: paying
                   ? const SizedBox(
                       height: 20,
                       width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child:
+                          CircularProgressIndicator(
+                        strokeWidth: 2,
+                      ),
                     )
-                  : const Icon(Icons.payment),
+                  : const Icon(
+                      Icons.payment,
+                    ),
               label: Text(
                 paying
                     ? 'PROCESSING...'
-                    : 'PAY ₹${advanceAmount.toStringAsFixed(0)} ADVANCE (30%)',
+                    : 'PAY ₹${advanceAmount.toStringAsFixed(0)} '
+                        'ADVANCE (30%)',
               ),
             ),
           ),
+
           const SizedBox(height: 8),
+
           const Text(
             'Payment is processed securely by Cashfree.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey),
+            style: TextStyle(
+              color: Colors.grey,
+            ),
           ),
         ],
       ),
@@ -986,22 +1396,37 @@ class InfoCard extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
-            const Icon(Icons.directions_car, size: 38),
+            const Icon(
+              Icons.directions_car,
+              size: 38,
+            ),
+
             const SizedBox(width: 12),
+
             Expanded(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
                 children: [
                   const Text(
                     vehicleName,
                     style: TextStyle(
                       fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                      fontWeight:
+                          FontWeight.bold,
                     ),
                   ),
-                  Text('22 km/l • $serviceRegion'),
+
+                  Text(
+                    '22 km/l • $serviceRegion',
+                  ),
+
                   const SizedBox(height: 4),
-                  Text('AC ₹$acRate/km • Non-AC ₹$nonAcRate/km'),
+
+                  Text(
+                    'AC ₹$acRate/km • '
+                    'Non-AC ₹$nonAcRate/km',
+                  ),
                 ],
               ),
             ),
@@ -1036,59 +1461,98 @@ class FareCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding:
+            const EdgeInsets.all(16),
         child: Column(
           children: [
             const Align(
-              alignment: Alignment.centerLeft,
+              alignment:
+                  Alignment.centerLeft,
               child: Text(
                 'FARE SUMMARY',
                 style: TextStyle(
                   fontSize: 18,
-                  fontWeight: FontWeight.bold,
+                  fontWeight:
+                      FontWeight.bold,
                 ),
               ),
             ),
+
             const Divider(),
+
             fareRow(
               'Distance',
               distanceKm == null
                   ? '--'
-                  : '${distanceKm!.toStringAsFixed(1)} km × ₹${rate.toStringAsFixed(0)}',
+                  : '${distanceKm!.toStringAsFixed(1)} km × '
+                      '₹${rate.toStringAsFixed(0)}',
             ),
-            fareRow('Distance Fare', money(distanceFare)),
-            fareRow('Holding Fare', money(holdingFare)),
+
+            fareRow(
+              'Distance Fare',
+              money(distanceFare),
+            ),
+
+            fareRow(
+              'Holding Fare',
+              money(holdingFare),
+            ),
+
             const Divider(),
-            fareRow('TOTAL', money(totalAmount), bold: true),
+
+            fareRow(
+              'TOTAL',
+              money(totalAmount),
+              bold: true,
+            ),
+
             fareRow(
               '30% ADVANCE',
               money(advanceAmount),
               bold: true,
             ),
-            fareRow('Balance', money(balanceAmount)),
+
+            fareRow(
+              'Balance',
+              money(balanceAmount),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget fareRow(String label, String value, {bool bold = false}) {
+  Widget fareRow(
+    String label,
+    String value, {
+    bool bold = false,
+  }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
+      padding:
+          const EdgeInsets.symmetric(
+        vertical: 5,
+      ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment:
+            MainAxisAlignment.spaceBetween,
         children: [
           Text(
             label,
             style: TextStyle(
-              fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+              fontWeight: bold
+                  ? FontWeight.bold
+                  : FontWeight.normal,
             ),
           ),
+
           Text(
             value,
             style: TextStyle(
-              fontWeight: bold ? FontWeight.bold : FontWeight.normal,
-              fontSize: bold ? 16 : 14,
+              fontWeight: bold
+                  ? FontWeight.bold
+                  : FontWeight.normal,
+              fontSize:
+                  bold ? 16 : 14,
             ),
           ),
         ],
@@ -1097,51 +1561,85 @@ class FareCard extends StatelessWidget {
   }
 }
 
-class MyBookingsPage extends StatelessWidget {
+class MyBookingsPage
+    extends StatelessWidget {
   const MyBookingsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final uid = auth.currentUser?.uid;
+    final uid =
+        auth.currentUser?.uid;
 
     if (uid == null) {
       return const Scaffold(
-        body: Center(child: Text('Please login again.')),
+        body: Center(
+          child:
+              Text('Please login again.'),
+        ),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('My Bookings')),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      appBar: AppBar(
+        title:
+            const Text('My Bookings'),
+      ),
+      body: StreamBuilder<
+          QuerySnapshot<
+              Map<String, dynamic>>>(
         stream: db
             .collection('bookings')
-            .where('userId', isEqualTo: uid)
+            .where(
+              'userId',
+              isEqualTo: uid,
+            )
             .snapshots(),
-        builder: (context, snapshot) {
+        builder:
+            (context, snapshot) {
           if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
+            return Center(
+              child: Text(
+                'Error: ${snapshot.error}',
+              ),
+            );
           }
 
-          final docs = [...snapshot.data!.docs];
+          if (!snapshot.hasData) {
+            return const Center(
+              child:
+                  CircularProgressIndicator(),
+            );
+          }
+
+          final docs =
+              [...snapshot.data!.docs];
+
           docs.sort((a, b) {
-            final at = (a.data()['createdAt'] as Timestamp?)
+            final at =
+                (a.data()['createdAt']
+                        as Timestamp?)
                     ?.millisecondsSinceEpoch ??
-                0;
-            final bt = (b.data()['createdAt'] as Timestamp?)
+                    0;
+
+            final bt =
+                (b.data()['createdAt']
+                        as Timestamp?)
                     ?.millisecondsSinceEpoch ??
-                0;
+                    0;
+
             return bt.compareTo(at);
           });
 
           if (docs.isEmpty) {
-            return const Center(child: Text('No bookings yet.'));
+            return const Center(
+              child:
+                  Text('No bookings yet.'),
+            );
           }
 
           return ListView.builder(
-            padding: const EdgeInsets.all(14),
+            padding:
+                const EdgeInsets.all(14),
             itemCount: docs.length,
             itemBuilder: (_, i) {
               return BookingCard(
@@ -1156,8 +1654,11 @@ class MyBookingsPage extends StatelessWidget {
   }
 }
 
-class BookingCard extends StatelessWidget {
-  final QueryDocumentSnapshot<Map<String, dynamic>> doc;
+class BookingCard
+    extends StatelessWidget {
+  final QueryDocumentSnapshot<
+      Map<String, dynamic>> doc;
+
   final bool isAdmin;
 
   const BookingCard({
@@ -1169,85 +1670,166 @@ class BookingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final b = doc.data();
-    final status = (b['status'] ?? 'Pending').toString();
-    final paymentStatus = (b['paymentStatus'] ?? 'Pending').toString();
-    final total = NumberUtil.toDouble(b['totalAmount']) ?? 0;
-    final advance = NumberUtil.toDouble(b['advanceAmount']) ?? 0;
-    final distance = NumberUtil.toDouble(b['distanceKm']) ?? 0;
+
+    final status =
+        (b['status'] ??
+                'Pending')
+            .toString();
+
+    final paymentStatus =
+        (b['paymentStatus'] ??
+                'Pending')
+            .toString();
+
+    final total =
+        NumberUtil.toDouble(
+              b['totalAmount'],
+            ) ??
+            0;
+
+    final advance =
+        NumberUtil.toDouble(
+              b['advanceAmount'],
+            ) ??
+            0;
+
+    final distance =
+        NumberUtil.toDouble(
+              b['distanceKm'],
+            ) ??
+            0;
 
     final canTrack =
-        status == 'Confirmed' || status == 'Trip Started';
+        status == 'Confirmed' ||
+        status == 'Trip Started';
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(15),
+        padding:
+            const EdgeInsets.all(15),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Expanded(
                   child: Text(
-                    'Booking ${doc.id.substring(0, min(8, doc.id.length))}',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    'Booking '
+                    '${doc.id.substring(0, min(8, doc.id.length))}',
+                    style:
+                        const TextStyle(
+                      fontWeight:
+                          FontWeight.bold,
+                    ),
                   ),
                 ),
-                StatusChip(text: status),
+
+                StatusChip(
+                  text: status,
+                ),
               ],
             ),
+
             const SizedBox(height: 10),
-            infoLine(Icons.person, b['userName']?.toString() ?? ''),
-            infoLine(Icons.phone, b['userPhone']?.toString() ?? ''),
+
+            infoLine(
+              Icons.person,
+              b['userName']
+                      ?.toString() ??
+                  '',
+            ),
+
+            infoLine(
+              Icons.phone,
+              b['userPhone']
+                      ?.toString() ??
+                  '',
+            ),
+
             infoLine(
               Icons.my_location,
-              b['pickup']?.toString() ?? '',
+              b['pickup']
+                      ?.toString() ??
+                  '',
             ),
+
             infoLine(
               Icons.location_on,
-              b['drop']?.toString() ?? '',
+              b['drop']
+                      ?.toString() ??
+                  '',
             ),
+
             infoLine(
               Icons.route,
               '${distance.toStringAsFixed(1)} km',
             ),
+
             infoLine(
               Icons.payments,
-              'Total ${money(total)} • Advance ${money(advance)}',
+              'Total ${money(total)} • '
+              'Advance ${money(advance)}',
             ),
+
             infoLine(
               Icons.verified,
               'Payment: $paymentStatus',
             ),
-            if (b['orderId']?.toString().isNotEmpty == true)
+
+            if (b['orderId']
+                    ?.toString()
+                    .isNotEmpty ==
+                true)
               infoLine(
                 Icons.receipt,
                 'Order: ${b['orderId']}',
               ),
+
             const SizedBox(height: 8),
+
             if (canTrack)
               SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
+                width:
+                    double.infinity,
+                child:
+                    FilledButton.icon(
                   onPressed: () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => CustomerTrackingPage(
-                          bookingId: doc.id,
+                        builder: (_) =>
+                            CustomerTrackingPage(
+                          bookingId:
+                              doc.id,
                         ),
                       ),
                     );
                   },
-                  icon: const Icon(Icons.gps_fixed),
-                  label: const Text('TRACK DRIVER'),
+                  icon: const Icon(
+                    Icons.gps_fixed,
+                  ),
+                  label:
+                      const Text(
+                    'TRACK DRIVER',
+                  ),
                 ),
               ),
-            if (status == 'Trip Started')
+
+            if (status ==
+                'Trip Started')
               const Padding(
-                padding: EdgeInsets.only(top: 8),
+                padding:
+                    EdgeInsets.only(
+                  top: 8,
+                ),
                 child: Text(
                   'Trip is currently running.',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                  style:
+                      TextStyle(
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
                 ),
               ),
           ],
@@ -1257,7 +1839,8 @@ class BookingCard extends StatelessWidget {
   }
 }
 
-class AdminPanel extends StatelessWidget {
+class AdminPanel
+    extends StatelessWidget {
   const AdminPanel({super.key});
 
   Future<void> updateBooking(
@@ -1266,125 +1849,251 @@ class AdminPanel extends StatelessWidget {
     String status,
   ) async {
     try {
-      await db.collection('bookings').doc(bookingId).update({
+      await db
+          .collection('bookings')
+          .doc(bookingId)
+          .update({
         'status': status,
-        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedAt':
+            FieldValue.serverTimestamp(),
       });
-      snack(context, 'Booking $status');
+
+      snack(
+        context,
+        'Booking $status',
+      );
     } catch (e) {
-      snack(context, 'Update failed: $e');
+      snack(
+        context,
+        'Update failed: $e',
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Admin Panel')),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: db.collection('bookings').snapshots(),
-        builder: (context, snapshot) {
+      appBar: AppBar(
+        title:
+            const Text('Admin Panel'),
+      ),
+      body: StreamBuilder<
+          QuerySnapshot<
+              Map<String, dynamic>>>(
+        stream: db
+            .collection('bookings')
+            .snapshots(),
+        builder:
+            (context, snapshot) {
           if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
+            return Center(
+              child: Text(
+                'Error: ${snapshot.error}',
+              ),
+            );
           }
 
-          final docs = [...snapshot.data!.docs];
+          if (!snapshot.hasData) {
+            return const Center(
+              child:
+                  CircularProgressIndicator(),
+            );
+          }
+
+          final docs =
+              [...snapshot.data!.docs];
+
           docs.sort((a, b) {
-            final at = (a.data()['createdAt'] as Timestamp?)
+            final at =
+                (a.data()['createdAt']
+                        as Timestamp?)
                     ?.millisecondsSinceEpoch ??
-                0;
-            final bt = (b.data()['createdAt'] as Timestamp?)
+                    0;
+
+            final bt =
+                (b.data()['createdAt']
+                        as Timestamp?)
                     ?.millisecondsSinceEpoch ??
-                0;
+                    0;
+
             return bt.compareTo(at);
           });
 
           if (docs.isEmpty) {
-            return const Center(child: Text('No bookings.'));
+            return const Center(
+              child:
+                  Text('No bookings.'),
+            );
           }
 
           return ListView.builder(
-            padding: const EdgeInsets.all(14),
+            padding:
+                const EdgeInsets.all(14),
             itemCount: docs.length,
             itemBuilder: (_, i) {
-              final b = docs[i].data();
-              final status = (b['status'] ?? 'Pending').toString();
-              final payment = (b['paymentStatus'] ?? 'Pending').toString();
+              final b =
+                  docs[i].data();
+
+              final status =
+                  (b['status'] ??
+                          'Pending')
+                      .toString();
+
+              final payment =
+                  (b['paymentStatus'] ??
+                          'Pending')
+                      .toString();
 
               return Card(
                 child: Padding(
-                  padding: const EdgeInsets.all(15),
+                  padding:
+                      const EdgeInsets.all(
+                    15,
+                  ),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment:
+                        CrossAxisAlignment
+                            .start,
                     children: [
                       Row(
                         children: [
                           Expanded(
                             child: Text(
                               'Booking ${docs[i].id}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
+                              style:
+                                  const TextStyle(
+                                fontWeight:
+                                    FontWeight.bold,
                               ),
                             ),
                           ),
-                          StatusChip(text: status),
+                          StatusChip(
+                            text:
+                                status,
+                          ),
                         ],
                       ),
-                      const SizedBox(height: 8),
-                      Text('Customer: ${b['userName'] ?? ''}'),
-                      Text('Phone: ${b['userPhone'] ?? ''}'),
-                      Text('Pickup: ${b['pickup'] ?? ''}'),
-                      Text('Drop: ${b['drop'] ?? ''}'),
-                      Text(
-                        'Total: ${money(NumberUtil.toDouble(b['totalAmount']) ?? 0)}',
+
+                      const SizedBox(
+                        height: 8,
                       ),
-                      Text('Payment: $payment'),
-                      const SizedBox(height: 10),
-                      if (status == 'Payment Pending' ||
-                          status == 'Pending')
+
+                      Text(
+                        'Customer: '
+                        '${b['userName'] ?? ''}',
+                      ),
+
+                      Text(
+                        'Phone: '
+                        '${b['userPhone'] ?? ''}',
+                      ),
+
+                      Text(
+                        'Pickup: '
+                        '${b['pickup'] ?? ''}',
+                      ),
+
+                      Text(
+                        'Drop: '
+                        '${b['drop'] ?? ''}',
+                      ),
+
+                      Text(
+                        'Total: '
+                        '${money(
+                          NumberUtil
+                                  .toDouble(
+                            b['totalAmount'],
+                          ) ??
+                              0,
+                        )}',
+                      ),
+
+                      Text(
+                        'Payment: $payment',
+                      ),
+
+                      const SizedBox(
+                        height: 10,
+                      ),
+
+                      if (status ==
+                              'Payment Pending' ||
+                          status ==
+                              'Pending')
                         Row(
                           children: [
                             Expanded(
-                              child: FilledButton(
-                                onPressed: payment == 'Paid'
-                                    ? () => updateBooking(
-                                          context,
-                                          docs[i].id,
-                                          'Confirmed',
-                                        )
-                                    : null,
-                                child: const Text('ACCEPT'),
+                              child:
+                                  FilledButton(
+                                onPressed:
+                                    payment ==
+                                            'Paid'
+                                        ? () =>
+                                            updateBooking(
+                                              context,
+                                              docs[i].id,
+                                              'Confirmed',
+                                            )
+                                        : null,
+                                child:
+                                    const Text(
+                                  'ACCEPT',
+                                ),
                               ),
                             ),
-                            const SizedBox(width: 8),
+
+                            const SizedBox(
+                              width: 8,
+                            ),
+
                             Expanded(
-                              child: OutlinedButton(
-                                onPressed: () => updateBooking(
+                              child:
+                                  OutlinedButton(
+                                onPressed:
+                                    () =>
+                                        updateBooking(
                                   context,
                                   docs[i].id,
                                   'Rejected',
                                 ),
-                                child: const Text('REJECT'),
+                                child:
+                                    const Text(
+                                  'REJECT',
+                                ),
                               ),
                             ),
                           ],
                         ),
-                      if (status == 'Confirmed' || status == 'Trip Started')
+
+                      if (status ==
+                              'Confirmed' ||
+                          status ==
+                              'Trip Started')
                         SizedBox(
-                          width: double.infinity,
-                          child: FilledButton.icon(
+                          width:
+                              double.infinity,
+                          child:
+                              FilledButton.icon(
                             onPressed: () {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => const DriverModePage(),
+                                  builder:
+                                      (_) =>
+                                          const DriverModePage(),
                                 ),
                               );
                             },
-                            icon: const Icon(Icons.directions_car),
-                            label: const Text('DRIVER MODE'),
+                            icon:
+                                const Icon(
+                              Icons
+                                  .directions_car,
+                            ),
+                            label:
+                                const Text(
+                              'DRIVER MODE',
+                            ),
                           ),
                         ),
                     ],
@@ -1399,20 +2108,31 @@ class AdminPanel extends StatelessWidget {
   }
 }
 
-class DriverModePage extends StatefulWidget {
+class DriverModePage
+    extends StatefulWidget {
   const DriverModePage({super.key});
 
   @override
-  State<DriverModePage> createState() => _DriverModePageState();
+  State<DriverModePage> createState() =>
+      _DriverModePageState();
 }
 
-class _DriverModePageState extends State<DriverModePage> {
-  StreamSubscription<Position>? positionSubscription;
+class _DriverModePageState
+    extends State<DriverModePage> {
+  StreamSubscription<
+          Position>?
+      positionSubscription;
+
   Position? currentPosition;
+
   bool online = false;
+
   String? activeBookingId;
+
   Position? _lastTripPosition;
+
   double _liveDistanceKm = 0.0;
+
   bool tripStarting = false;
   bool tripEnding = false;
 
@@ -1428,25 +2148,44 @@ class _DriverModePageState extends State<DriverModePage> {
     super.dispose();
   }
 
-  Future<bool> _ensureLocationPermission() async {
-    if (!await Geolocator.isLocationServiceEnabled()) {
+  Future<bool>
+      _ensureLocationPermission() async {
+    if (!await Geolocator
+        .isLocationServiceEnabled()) {
       if (mounted) {
-        snack(context, 'Please turn on Location/GPS.');
+        snack(
+          context,
+          'Please turn on Location/GPS.',
+        );
       }
+
       return false;
     }
 
-    var permission = await Geolocator.checkPermission();
+    var permission =
+        await Geolocator
+            .checkPermission();
 
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
+    if (permission ==
+        LocationPermission.denied) {
+      permission =
+          await Geolocator
+              .requestPermission();
     }
 
-    if (permission == LocationPermission.denied ||
-        permission == LocationPermission.deniedForever) {
+    if (permission ==
+            LocationPermission
+                .denied ||
+        permission ==
+            LocationPermission
+                .deniedForever) {
       if (mounted) {
-        snack(context, 'Location permission is required.');
+        snack(
+          context,
+          'Location permission is required.',
+        );
       }
+
       return false;
     }
 
@@ -1454,63 +2193,118 @@ class _DriverModePageState extends State<DriverModePage> {
   }
 
   Future<void> _loadLocation() async {
-    if (!await _ensureLocationPermission()) return;
+    if (!await _ensureLocationPermission()) {
+      return;
+    }
 
     try {
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
+      final position =
+          await Geolocator
+              .getCurrentPosition(
+        locationSettings:
+            const LocationSettings(
+          accuracy:
+              LocationAccuracy.high,
         ),
       );
 
       if (mounted) {
-        setState(() => currentPosition = position);
+        setState(() {
+          currentPosition =
+              position;
+        });
       }
     } catch (e) {
-      if (mounted) snack(context, 'Location error: $e');
+      if (mounted) {
+        snack(
+          context,
+          'Location error: $e',
+        );
+      }
     }
   }
 
   Future<void> toggleOnline() async {
     if (online) {
-      await positionSubscription?.cancel();
+      await positionSubscription
+          ?.cancel();
+
       positionSubscription = null;
 
-      final uid = auth.currentUser?.uid;
+      final uid =
+          auth.currentUser?.uid;
+
       if (uid != null) {
-        await db.collection('driverLocations').doc(uid).set({
+        await db
+            .collection(
+              'driverLocations',
+            )
+            .doc(uid)
+            .set({
           'online': false,
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+          'updatedAt':
+              FieldValue
+                  .serverTimestamp(),
+        }, SetOptions(
+          merge: true,
+        ));
       }
 
-      if (mounted) setState(() => online = false);
+      if (mounted) {
+        setState(() {
+          online = false;
+        });
+      }
+
       return;
     }
 
-    if (!await _ensureLocationPermission()) return;
+    if (!await _ensureLocationPermission()) {
+      return;
+    }
 
-    final uid = auth.currentUser?.uid;
+    final uid =
+        auth.currentUser?.uid;
+
     if (uid == null) return;
 
     try {
-      final first = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
+      final first =
+          await Geolocator
+              .getCurrentPosition(
+        locationSettings:
+            const LocationSettings(
+          accuracy:
+              LocationAccuracy.high,
         ),
       );
 
-      await _writeDriverLocation(first, true);
+      await _writeDriverLocation(
+        first,
+        true,
+      );
 
-      positionSubscription = Geolocator.getPositionStream(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
+      positionSubscription =
+          Geolocator
+              .getPositionStream(
+        locationSettings:
+            const LocationSettings(
+          accuracy:
+              LocationAccuracy.high,
           distanceFilter: 5,
         ),
       ).listen((position) {
-        currentPosition = position;
-        _writeDriverLocation(position, true);
-        if (mounted) setState(() {});
+        currentPosition =
+            position;
+
+        _writeDriverLocation(
+          position,
+          true,
+        );
+
+        if (mounted) {
+          setState(() {});
+        }
       });
 
       setState(() {
@@ -1518,9 +2312,15 @@ class _DriverModePageState extends State<DriverModePage> {
         currentPosition = first;
       });
 
-      snack(context, 'Driver is online.');
+      snack(
+        context,
+        'Driver is online.',
+      );
     } catch (e) {
-      snack(context, 'Unable to start driver mode: $e');
+      snack(
+        context,
+        'Unable to start driver mode: $e',
+      );
     }
   }
 
@@ -1528,228 +2328,456 @@ class _DriverModePageState extends State<DriverModePage> {
     Position position,
     bool isOnline,
   ) async {
-    final uid = auth.currentUser?.uid;
+    final uid =
+        auth.currentUser?.uid;
+
     if (uid == null) return;
 
-    await db.collection('driverLocations').doc(uid).set({
+    await db
+        .collection('driverLocations')
+        .doc(uid)
+        .set({
       'driverId': uid,
-      'latitude': position.latitude,
-      'longitude': position.longitude,
-      'accuracy': position.accuracy,
-      'speed': position.speed,
+      'latitude':
+          position.latitude,
+      'longitude':
+          position.longitude,
+      'accuracy':
+          position.accuracy,
+      'speed':
+          position.speed,
       'online': isOnline,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+      'updatedAt':
+          FieldValue.serverTimestamp(),
+    }, SetOptions(
+      merge: true,
+    ));
 
     if (activeBookingId != null) {
-      if (_lastTripPosition != null) {
-        final meters = Geolocator.distanceBetween(
-          _lastTripPosition!.latitude,
-          _lastTripPosition!.longitude,
+      if (_lastTripPosition !=
+          null) {
+        final meters =
+            Geolocator
+                .distanceBetween(
+          _lastTripPosition!
+              .latitude,
+          _lastTripPosition!
+              .longitude,
           position.latitude,
           position.longitude,
         );
 
-        // Ignore tiny GPS jitter.
-        if (meters >= 5 && meters <= 5000) {
-          _liveDistanceKm += meters / 1000.0;
+        if (meters >= 5 &&
+            meters <= 5000) {
+          _liveDistanceKm +=
+              meters / 1000.0;
         }
       }
 
-      _lastTripPosition = position;
+      _lastTripPosition =
+          position;
 
       final tripSnapshot =
-          await db.collection('liveTrips').doc(activeBookingId).get();
-      final tripData = tripSnapshot.data() ?? {};
-      final tripRate = NumberUtil.toDouble(tripData['ratePerKm']) ?? acRate;
-      final liveFare = _liveDistanceKm * tripRate;
+          await db
+              .collection(
+                'liveTrips',
+              )
+              .doc(
+                activeBookingId,
+              )
+              .get();
 
-      await db.collection('liveTrips').doc(activeBookingId).set({
-        'latitude': position.latitude,
-        'longitude': position.longitude,
+      final tripData =
+          tripSnapshot.data() ??
+              {};
+
+      final tripRate =
+          NumberUtil.toDouble(
+                tripData[
+                    'ratePerKm'],
+              ) ??
+              acRate;
+
+      final liveFare =
+          _liveDistanceKm *
+              tripRate;
+
+      await db
+          .collection(
+            'liveTrips',
+          )
+          .doc(
+            activeBookingId,
+          )
+          .set({
+        'latitude':
+            position.latitude,
+        'longitude':
+            position.longitude,
         'driverId': uid,
-        'liveDistanceKm': _liveDistanceKm,
-        'liveFare': liveFare,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+        'liveDistanceKm':
+            _liveDistanceKm,
+        'liveFare':
+            liveFare,
+        'updatedAt':
+            FieldValue
+                .serverTimestamp(),
+      }, SetOptions(
+        merge: true,
+      ));
     }
   }
 
-  Future<void> startTrip(String bookingId) async {
+  Future<void> startTrip(
+    String bookingId,
+  ) async {
     if (tripStarting) return;
 
-    setState(() => tripStarting = true);
+    setState(() {
+      tripStarting = true;
+    });
 
     try {
       final booking =
-          await db.collection('bookings').doc(bookingId).get();
+          await db
+              .collection(
+                'bookings',
+              )
+              .doc(bookingId)
+              .get();
 
       if (!booking.exists) {
-        throw Exception('Booking not found.');
+        throw Exception(
+          'Booking not found.',
+        );
       }
 
-      final b = booking.data()!;
-      if (b['status'] != 'Confirmed') {
+      final b =
+          booking.data()!;
+
+      if (b['status'] !=
+          'Confirmed') {
         throw Exception(
           'Trip can start only after booking is Confirmed.',
         );
       }
 
-      final pos = currentPosition ??
-          await Geolocator.getCurrentPosition(
-            locationSettings: const LocationSettings(
-              accuracy: LocationAccuracy.high,
+      final pos =
+          currentPosition ??
+              await Geolocator
+                  .getCurrentPosition(
+            locationSettings:
+                const LocationSettings(
+              accuracy:
+                  LocationAccuracy.high,
             ),
           );
 
-      final uid = auth.currentUser?.uid;
+      final uid =
+          auth.currentUser?.uid;
 
-      await db.collection('liveTrips').doc(bookingId).set({
-        'bookingId': bookingId,
+      await db
+          .collection('liveTrips')
+          .doc(bookingId)
+          .set({
+        'bookingId':
+            bookingId,
         'driverId': uid,
-        'customerId': b['userId'],
-        'customerName': b['userName'],
-        'pickup': b['pickup'],
-        'drop': b['drop'],
-        'vehicle': b['vehicle'],
-        'vehicleType': b['vehicleType'],
-        'ratePerKm': b['ratePerKm'],
-        'holdingRate': holdingRate,
-        'startLatitude': pos.latitude,
-        'startLongitude': pos.longitude,
-        'latitude': pos.latitude,
-        'longitude': pos.longitude,
-        'liveDistanceKm': 0.0,
-        'liveFare': 0.0,
-        'status': 'Trip Started',
-        'startedAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
+        'customerId':
+            b['userId'],
+        'customerName':
+            b['userName'],
+        'pickup':
+            b['pickup'],
+        'drop':
+            b['drop'],
+        'vehicle':
+            b['vehicle'],
+        'vehicleType':
+            b['vehicleType'],
+        'ratePerKm':
+            b['ratePerKm'],
+        'holdingRate':
+            holdingRate,
+        'startLatitude':
+            pos.latitude,
+        'startLongitude':
+            pos.longitude,
+        'latitude':
+            pos.latitude,
+        'longitude':
+            pos.longitude,
+        'liveDistanceKm':
+            0.0,
+        'liveFare':
+            0.0,
+        'status':
+            'Trip Started',
+        'startedAt':
+            FieldValue
+                .serverTimestamp(),
+        'updatedAt':
+            FieldValue
+                .serverTimestamp(),
       });
 
-      await db.collection('bookings').doc(bookingId).update({
-        'status': 'Trip Started',
+      await db
+          .collection('bookings')
+          .doc(bookingId)
+          .update({
+        'status':
+            'Trip Started',
         'driverId': uid,
-        'tripStartedAt': FieldValue.serverTimestamp(),
+        'tripStartedAt':
+            FieldValue
+                .serverTimestamp(),
       });
 
-      _liveDistanceKm = 0.0;
-      _lastTripPosition = pos;
-      setState(() => activeBookingId = bookingId);
+      _liveDistanceKm =
+          0.0;
+
+      _lastTripPosition =
+          pos;
+
+      setState(() {
+        activeBookingId =
+            bookingId;
+      });
 
       if (!online) {
         await toggleOnline();
       }
 
-      snack(context, 'Trip started.');
+      snack(
+        context,
+        'Trip started.',
+      );
     } catch (e) {
-      snack(context, 'Start trip failed: $e');
+      snack(
+        context,
+        'Start trip failed: $e',
+      );
     } finally {
-      if (mounted) setState(() => tripStarting = false);
+      if (mounted) {
+        setState(() {
+          tripStarting = false;
+        });
+      }
     }
   }
 
-  Future<void> endTrip(String bookingId) async {
+  Future<void> endTrip(
+    String bookingId,
+  ) async {
     if (tripEnding) return;
 
-    setState(() => tripEnding = true);
+    setState(() {
+      tripEnding = true;
+    });
 
     try {
-      final tripRef = db.collection('liveTrips').doc(bookingId);
-      final trip = await tripRef.get();
+      final tripRef =
+          db.collection(
+            'liveTrips',
+          ).doc(bookingId);
 
-      if (!trip.exists) throw Exception('Live trip not found.');
+      final trip =
+          await tripRef.get();
 
-      final t = trip.data()!;
-      final liveDistance =
-          NumberUtil.toDouble(t['liveDistanceKm']) ?? 0;
-      final rate =
-          NumberUtil.toDouble(t['ratePerKm']) ?? acRate;
-      final startAt = (t['startedAt'] as Timestamp?)?.toDate();
-
-      double hours = 0;
-      if (startAt != null) {
-        final elapsed = DateTime.now().difference(startAt).inMinutes;
-        hours = elapsed / 60.0;
+      if (!trip.exists) {
+        throw Exception(
+          'Live trip not found.',
+        );
       }
 
-      final finalDistanceFare = liveDistance * rate;
-      final finalHoldingFare = hours * holdingRate;
-      final finalFare = finalDistanceFare + finalHoldingFare;
+      final t =
+          trip.data()!;
+
+      final liveDistance =
+          NumberUtil.toDouble(
+                t['liveDistanceKm'],
+              ) ??
+              0;
+
+      final rate =
+          NumberUtil.toDouble(
+                t['ratePerKm'],
+              ) ??
+              acRate;
+
+      final startAt =
+          (t['startedAt']
+                  as Timestamp?)
+              ?.toDate();
+
+      double hours = 0;
+
+      if (startAt != null) {
+        final elapsed =
+            DateTime.now()
+                .difference(startAt)
+                .inMinutes;
+
+        hours =
+            elapsed / 60.0;
+      }
+
+      final finalDistanceFare =
+          liveDistance * rate;
+
+      final finalHoldingFare =
+          hours * holdingRate;
+
+      final finalFare =
+          finalDistanceFare +
+              finalHoldingFare;
 
       await tripRef.update({
-        'status': 'Completed',
-        'endDistanceKm': liveDistance,
-        'holdingHoursFinal': hours,
-        'distanceFareFinal': finalDistanceFare,
-        'holdingFareFinal': finalHoldingFare,
-        'finalFare': finalFare,
-        'completedAt': FieldValue.serverTimestamp(),
+        'status':
+            'Completed',
+        'endDistanceKm':
+            liveDistance,
+        'holdingHoursFinal':
+            hours,
+        'distanceFareFinal':
+            finalDistanceFare,
+        'holdingFareFinal':
+            finalHoldingFare,
+        'finalFare':
+            finalFare,
+        'completedAt':
+            FieldValue
+                .serverTimestamp(),
       });
 
-      await db.collection('bookings').doc(bookingId).update({
-        'status': 'Completed',
-        'finalDistanceKm': liveDistance,
-        'finalHoldingHours': hours,
-        'finalDistanceFare': finalDistanceFare,
-        'finalHoldingFare': finalHoldingFare,
-        'finalFare': finalFare,
-        'balanceAmount': max(
+      final bookingSnapshot =
+          await db
+              .collection(
+                'bookings',
+              )
+              .doc(bookingId)
+              .get();
+
+      final bookingData =
+          bookingSnapshot.data() ??
+              {};
+
+      final advance =
+          NumberUtil.toDouble(
+                bookingData[
+                    'advanceAmount'],
+              ) ??
+              0;
+
+      await db
+          .collection('bookings')
+          .doc(bookingId)
+          .update({
+        'status':
+            'Completed',
+        'finalDistanceKm':
+            liveDistance,
+        'finalHoldingHours':
+            hours,
+        'finalDistanceFare':
+            finalDistanceFare,
+        'finalHoldingFare':
+            finalHoldingFare,
+        'finalFare':
+            finalFare,
+        'balanceAmount':
+            max(
           0,
-          finalFare -
-              (NumberUtil.toDouble(
-                    (await db.collection('bookings').doc(bookingId).get())
-                        .data()?['advanceAmount'],
-                  ) ??
-                  0),
+          finalFare - advance,
         ),
-        'completedAt': FieldValue.serverTimestamp(),
+        'completedAt':
+            FieldValue
+                .serverTimestamp(),
       });
 
-      _liveDistanceKm = 0.0;
-      _lastTripPosition = null;
-      setState(() => activeBookingId = null);
+      _liveDistanceKm =
+          0.0;
+
+      _lastTripPosition =
+          null;
+
+      setState(() {
+        activeBookingId =
+            null;
+      });
 
       snack(
         context,
-        'Trip completed. Final fare: ${money(finalFare)}',
+        'Trip completed. Final fare: '
+        '${money(finalFare)}',
       );
     } catch (e) {
-      snack(context, 'End trip failed: $e');
+      snack(
+        context,
+        'End trip failed: $e',
+      );
     } finally {
-      if (mounted) setState(() => tripEnding = false);
+      if (mounted) {
+        setState(() {
+          tripEnding = false;
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final driverId = auth.currentUser?.uid;
+    final driverId =
+        auth.currentUser?.uid;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Driver Mode')),
+      appBar: AppBar(
+        title:
+            const Text('Driver Mode'),
+      ),
       body: ListView(
-        padding: const EdgeInsets.all(14),
+        padding:
+            const EdgeInsets.all(14),
         children: [
           Card(
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding:
+                  const EdgeInsets.all(
+                16,
+              ),
               child: Row(
                 children: [
                   Icon(
-                    online ? Icons.wifi : Icons.wifi_off,
+                    online
+                        ? Icons.wifi
+                        : Icons.wifi_off,
                     size: 36,
                   ),
-                  const SizedBox(width: 12),
+
+                  const SizedBox(
+                    width: 12,
+                  ),
+
                   Expanded(
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment:
+                          CrossAxisAlignment
+                              .start,
                       children: [
                         Text(
-                          online ? 'DRIVER ONLINE' : 'DRIVER OFFLINE',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
+                          online
+                              ? 'DRIVER ONLINE'
+                              : 'DRIVER OFFLINE',
+                          style:
+                              const TextStyle(
+                            fontWeight:
+                                FontWeight
+                                    .bold,
                           ),
                         ),
-                        if (currentPosition != null)
+
+                        if (currentPosition !=
+                            null)
                           Text(
                             '${currentPosition!.latitude.toStringAsFixed(6)}, '
                             '${currentPosition!.longitude.toStringAsFixed(6)}',
@@ -1757,96 +2785,198 @@ class _DriverModePageState extends State<DriverModePage> {
                       ],
                     ),
                   ),
+
                   Switch(
                     value: online,
-                    onChanged: (_) => toggleOnline(),
+                    onChanged: (_) =>
+                        toggleOnline(),
                   ),
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 12),
+
+          const SizedBox(
+            height: 12,
+          ),
+
           if (driverId == null)
-            const Text('Driver login required.'),
+            const Text(
+              'Driver login required.',
+            ),
+
           if (driverId != null)
-            StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            StreamBuilder<
+                QuerySnapshot<
+                    Map<String,
+                        dynamic>>>(
               stream: db
-                  .collection('bookings')
+                  .collection(
+                    'bookings',
+                  )
                   .where(
                     'status',
-                    whereIn: const ['Confirmed', 'Trip Started'],
+                    whereIn: const [
+                      'Confirmed',
+                      'Trip Started',
+                    ],
                   )
                   .snapshots(),
-              builder: (context, snapshot) {
+              builder:
+                  (context, snapshot) {
                 if (snapshot.hasError) {
-                  return Text('Booking error: ${snapshot.error}');
+                  return Text(
+                    'Booking error: '
+                    '${snapshot.error}',
+                  );
                 }
 
                 if (!snapshot.hasData) {
                   return const Center(
-                    child: CircularProgressIndicator(),
+                    child:
+                        CircularProgressIndicator(),
                   );
                 }
 
-                final docs = snapshot.data!.docs;
+                final docs =
+                    snapshot.data!.docs;
 
                 if (docs.isEmpty) {
                   return const Card(
                     child: Padding(
-                      padding: EdgeInsets.all(20),
-                      child: Text('No confirmed trips.'),
+                      padding:
+                          EdgeInsets.all(
+                        20,
+                      ),
+                      child: Text(
+                        'No confirmed trips.',
+                      ),
                     ),
                   );
                 }
 
                 return Column(
-                  children: docs.map((doc) {
-                    final b = doc.data();
-                    final status = b['status']?.toString() ?? '';
-                    final isStarted = status == 'Trip Started';
+                  children:
+                      docs.map((doc) {
+                    final b =
+                        doc.data();
+
+                    final status =
+                        b['status']
+                                ?.toString() ??
+                            '';
+
+                    final isStarted =
+                        status ==
+                            'Trip Started';
 
                     return Card(
                       child: Padding(
-                        padding: const EdgeInsets.all(15),
+                        padding:
+                            const EdgeInsets
+                                .all(
+                          15,
+                        ),
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          crossAxisAlignment:
+                              CrossAxisAlignment
+                                  .start,
                           children: [
                             Text(
                               'Booking ${doc.id}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
+                              style:
+                                  const TextStyle(
+                                fontWeight:
+                                    FontWeight
+                                        .bold,
                               ),
                             ),
-                            const SizedBox(height: 8),
-                            Text('Customer: ${b['userName'] ?? ''}'),
-                            Text('Pickup: ${b['pickup'] ?? ''}'),
-                            Text('Drop: ${b['drop'] ?? ''}'),
-                            Text('Status: $status'),
-                            const SizedBox(height: 10),
+
+                            const SizedBox(
+                              height: 8,
+                            ),
+
+                            Text(
+                              'Customer: '
+                              '${b['userName'] ?? ''}',
+                            ),
+
+                            Text(
+                              'Pickup: '
+                              '${b['pickup'] ?? ''}',
+                            ),
+
+                            Text(
+                              'Drop: '
+                              '${b['drop'] ?? ''}',
+                            ),
+
+                            Text(
+                              'Status: $status',
+                            ),
+
+                            const SizedBox(
+                              height: 10,
+                            ),
+
                             if (!isStarted)
                               SizedBox(
-                                width: double.infinity,
-                                child: FilledButton.icon(
-                                  onPressed: tripStarting
-                                      ? null
-                                      : () => startTrip(doc.id),
-                                  icon: const Icon(Icons.play_arrow),
-                                  label: const Text('START TRIP'),
+                                width:
+                                    double
+                                        .infinity,
+                                child:
+                                    FilledButton
+                                        .icon(
+                                  onPressed:
+                                      tripStarting
+                                          ? null
+                                          : () =>
+                                              startTrip(
+                                            doc.id,
+                                          ),
+                                  icon:
+                                      const Icon(
+                                    Icons
+                                        .play_arrow,
+                                  ),
+                                  label:
+                                      const Text(
+                                    'START TRIP',
+                                  ),
                                 ),
                               ),
+
                             if (isStarted)
                               SizedBox(
-                                width: double.infinity,
-                                child: FilledButton.icon(
-                                  onPressed: tripEnding
-                                      ? null
-                                      : () => endTrip(doc.id),
-                                  icon: const Icon(Icons.stop),
-                                  label: const Text('END TRIP'),
+                                width:
+                                    double
+                                        .infinity,
+                                child:
+                                    FilledButton
+                                        .icon(
+                                  onPressed:
+                                      tripEnding
+                                          ? null
+                                          : () =>
+                                              endTrip(
+                                            doc.id,
+                                          ),
+                                  icon:
+                                      const Icon(
+                                    Icons.stop,
+                                  ),
+                                  label:
+                                      const Text(
+                                    'END TRIP',
+                                  ),
                                 ),
                               ),
+
                             if (isStarted)
-                              LiveTripMiniCard(bookingId: doc.id),
+                              LiveTripMiniCard(
+                                bookingId:
+                                    doc.id,
+                              ),
                           ],
                         ),
                       ),
@@ -1861,7 +2991,8 @@ class _DriverModePageState extends State<DriverModePage> {
   }
 }
 
-class LiveTripMiniCard extends StatelessWidget {
+class LiveTripMiniCard
+    extends StatelessWidget {
   final String bookingId;
 
   const LiveTripMiniCard({
@@ -1871,23 +3002,43 @@ class LiveTripMiniCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: db.collection('liveTrips').doc(bookingId).snapshots(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData || !snapshot.data!.exists) {
+    return StreamBuilder<
+        DocumentSnapshot<
+            Map<String, dynamic>>>(
+      stream: db
+          .collection('liveTrips')
+          .doc(bookingId)
+          .snapshots(),
+      builder:
+          (context, snapshot) {
+        if (!snapshot.hasData ||
+            !snapshot.data!.exists) {
           return const SizedBox.shrink();
         }
 
-        final t = snapshot.data!.data()!;
+        final t =
+            snapshot.data!.data()!;
+
         final distance =
-            NumberUtil.toDouble(t['liveDistanceKm']) ?? 0;
+            NumberUtil.toDouble(
+                  t['liveDistanceKm'],
+                ) ??
+                0;
+
         final fare =
-            NumberUtil.toDouble(t['liveFare']) ?? 0;
+            NumberUtil.toDouble(
+                  t['liveFare'],
+                ) ??
+                0;
 
         return Padding(
-          padding: const EdgeInsets.only(top: 10),
+          padding:
+              const EdgeInsets.only(
+            top: 10,
+          ),
           child: Text(
-            'Live distance: ${distance.toStringAsFixed(2)} km • '
+            'Live distance: '
+            '${distance.toStringAsFixed(2)} km • '
             'Live fare: ${money(fare)}',
           ),
         );
@@ -1896,7 +3047,8 @@ class LiveTripMiniCard extends StatelessWidget {
   }
 }
 
-class CustomerTrackingPage extends StatelessWidget {
+class CustomerTrackingPage
+    extends StatelessWidget {
   final String bookingId;
 
   const CustomerTrackingPage({
@@ -1907,57 +3059,113 @@ class CustomerTrackingPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Track Driver')),
-      body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: db.collection('liveTrips').doc(bookingId).snapshots(),
-        builder: (context, snapshot) {
+      appBar: AppBar(
+        title:
+            const Text('Track Driver'),
+      ),
+      body: StreamBuilder<
+          DocumentSnapshot<
+              Map<String, dynamic>>>(
+        stream: db
+            .collection('liveTrips')
+            .doc(bookingId)
+            .snapshots(),
+        builder:
+            (context, snapshot) {
           if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
+            return Center(
+              child: Text(
+                'Error: '
+                '${snapshot.error}',
+              ),
+            );
           }
 
           if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(
+              child:
+                  CircularProgressIndicator(),
+            );
           }
 
           if (!snapshot.data!.exists) {
             return const Center(
-              child: Text('Driver has not started the trip yet.'),
+              child: Text(
+                'Driver has not started '
+                'the trip yet.',
+              ),
             );
           }
 
-          final data = snapshot.data!.data()!;
-          final lat = NumberUtil.toDouble(data['latitude']);
-          final lng = NumberUtil.toDouble(data['longitude']);
+          final data =
+              snapshot.data!.data()!;
+
+          final lat =
+              NumberUtil.toDouble(
+            data['latitude'],
+          );
+
+          final lng =
+              NumberUtil.toDouble(
+            data['longitude'],
+          );
 
           final distance =
-              NumberUtil.toDouble(data['liveDistanceKm']) ?? 0;
+              NumberUtil.toDouble(
+                    data['liveDistanceKm'],
+                  ) ??
+                  0;
+
           final fare =
-              NumberUtil.toDouble(data['liveFare']) ?? 0;
-          final status = data['status']?.toString() ?? 'Waiting';
+              NumberUtil.toDouble(
+                    data['liveFare'],
+                  ) ??
+                  0;
+
+          final status =
+              data['status']
+                      ?.toString() ??
+                  'Waiting';
 
           return Column(
             children: [
               Expanded(
-                child: lat != null && lng != null
+                child: lat != null &&
+                        lng != null
                     ? FlutterMap(
-                        options: MapOptions(
-                          initialCenter: LatLng(lat, lng),
-                          initialZoom: 14,
+                        options:
+                            MapOptions(
+                          initialCenter:
+                              LatLng(
+                            lat,
+                            lng,
+                          ),
+                          initialZoom:
+                              14,
                         ),
                         children: [
                           TileLayer(
                             urlTemplate:
-                                'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                            userAgentPackageName: 'com.hrride.app',
+                                'https://tile.openstreetmap.org/'
+                                '{z}/{x}/{y}.png',
+                            userAgentPackageName:
+                                'com.hrride.app',
                           ),
+
                           MarkerLayer(
                             markers: [
                               Marker(
-                                point: LatLng(lat, lng),
+                                point:
+                                    LatLng(
+                                  lat,
+                                  lng,
+                                ),
                                 width: 60,
                                 height: 60,
-                                child: const Icon(
-                                  Icons.local_taxi,
+                                child:
+                                    const Icon(
+                                  Icons
+                                      .local_taxi,
                                   size: 42,
                                 ),
                               ),
@@ -1966,27 +3174,47 @@ class CustomerTrackingPage extends StatelessWidget {
                         ],
                       )
                     : const Center(
-                        child: Text('Waiting for driver location...'),
+                        child: Text(
+                          'Waiting for driver location...',
+                        ),
                       ),
               ),
+
               Card(
-                margin: const EdgeInsets.all(12),
+                margin:
+                    const EdgeInsets.all(
+                  12,
+                ),
                 child: Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding:
+                      const EdgeInsets.all(
+                    16,
+                  ),
                   child: Column(
                     children: [
                       Text(
                         status,
-                        style: const TextStyle(
+                        style:
+                            const TextStyle(
                           fontSize: 20,
-                          fontWeight: FontWeight.bold,
+                          fontWeight:
+                              FontWeight.bold,
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Live distance: ${distance.toStringAsFixed(2)} km',
+
+                      const SizedBox(
+                        height: 8,
                       ),
-                      Text('Live fare: ${money(fare)}'),
+
+                      Text(
+                        'Live distance: '
+                        '${distance.toStringAsFixed(2)} km',
+                      ),
+
+                      Text(
+                        'Live fare: '
+                        '${money(fare)}',
+                      ),
                     ],
                   ),
                 ),
@@ -1999,72 +3227,147 @@ class CustomerTrackingPage extends StatelessWidget {
   }
 }
 
-class StatusChip extends StatelessWidget {
+class StatusChip
+    extends StatelessWidget {
   final String text;
 
-  const StatusChip({super.key, required this.text});
+  const StatusChip({
+    super.key,
+    required this.text,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Chip(
       label: Text(
         text,
-        style: const TextStyle(fontSize: 11),
+        style:
+            const TextStyle(
+          fontSize: 11,
+        ),
       ),
     );
   }
 }
 
 class NumberUtil {
-  static double? toDouble(dynamic value) {
+  static double? toDouble(
+    dynamic value,
+  ) {
     if (value == null) return null;
-    if (value is num) return value.toDouble();
-    return double.tryParse(value.toString());
+
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    return double.tryParse(
+      value.toString(),
+    );
   }
 
-  static int? toInt(dynamic value) {
+  static int? toInt(
+    dynamic value,
+  ) {
     if (value == null) return null;
-    if (value is int) return value;
-    if (value is num) return value.round();
-    return int.tryParse(value.toString());
+
+    if (value is int) {
+      return value;
+    }
+
+    if (value is num) {
+      return value.round();
+    }
+
+    return int.tryParse(
+      value.toString(),
+    );
   }
 }
 
-String normalizeCustomerPhone(String input) {
-  final digits = input.replaceAll(RegExp(r'\D'), '');
-  if (digits.startsWith('91') && digits.length == 12) return digits.substring(2);
-  if (digits.length == 10) return digits;
+String normalizeCustomerPhone(
+  String input,
+) {
+  final digits =
+      input.replaceAll(
+    RegExp(r'\D'),
+    '',
+  );
+
+  if (digits.startsWith('91') &&
+      digits.length == 12) {
+    return digits.substring(2);
+  }
+
+  if (digits.length == 10) {
+    return digits;
+  }
+
   return digits;
 }
 
-String money(double value) => '₹${value.toStringAsFixed(2)}';
+String money(double value) =>
+    '₹${value.toStringAsFixed(2)}';
 
-Widget infoLine(IconData icon, String text) {
+Widget infoLine(
+  IconData icon,
+  String text,
+) {
   return Padding(
-    padding: const EdgeInsets.symmetric(vertical: 4),
+    padding:
+        const EdgeInsets.symmetric(
+      vertical: 4,
+    ),
     child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment:
+          CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 19),
-        const SizedBox(width: 9),
-        Expanded(child: Text(text)),
+        Icon(
+          icon,
+          size: 19,
+        ),
+
+        const SizedBox(
+          width: 9,
+        ),
+
+        Expanded(
+          child: Text(text),
+        ),
       ],
     ),
   );
 }
 
-String formatDate(DateTime date) {
-  final dd = date.day.toString().padLeft(2, '0');
-  final mm = date.month.toString().padLeft(2, '0');
+String formatDate(
+  DateTime date,
+) {
+  final dd =
+      date.day.toString().padLeft(
+            2,
+            '0',
+          );
+
+  final mm =
+      date.month.toString().padLeft(
+            2,
+            '0',
+          );
+
   return '$dd/$mm/${date.year}';
 }
 
-void snack(BuildContext context, String message) {
+void snack(
+  BuildContext context,
+  String message,
+) {
   if (!context.mounted) return;
 
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
     ..showSnackBar(
-      SnackBar(content: Text(message)),
+      SnackBar(
+        content:
+            Text(message),
+      ),
     );
 }
