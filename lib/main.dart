@@ -1513,7 +1513,7 @@ class WalletPage extends StatelessWidget {
               Card(
                 child: ListTile(
                   leading: const Icon(Icons.card_giftcard),
-                  title: const Text('Get 5% Cashback'),
+                  title: const Text('Get 2% Cashback'),
                   subtitle: const Text('Cashback is credited after your trip is completed.'),
                 ),
               ),
@@ -2506,14 +2506,26 @@ class _DriverModePageState extends State<DriverModePage> {
           NumberUtil.toDouble(t['liveDistanceKm']) ?? 0;
       final rate =
           NumberUtil.toDouble(t['ratePerKm']) ?? acRate;
+
+      // Calculate actual holding time from trip start.
+      // Holding charge = ₹100 per hour.
+      double hours = 0.0;
+      final startAt = (t['startedAt'] as Timestamp?)?.toDate();
+
+      if (startAt != null) {
+        final elapsedMinutes =
+            DateTime.now().difference(startAt).inMinutes;
+        hours = elapsedMinutes / 60.0;
+      }
+
       final finalDistanceFare = liveDistance * rate;
-      final finalHoldingFare = 0.0;
+      final finalHoldingFare = hours * holdingRate;
       final finalFare = finalDistanceFare + finalHoldingFare;
 
       await tripRef.update({
         'status': 'Completed',
         'endDistanceKm': liveDistance,
-        'holdingHoursFinal': 0.0,
+        'holdingHoursFinal': hours,
         'distanceFareFinal': finalDistanceFare,
         'holdingFareFinal': finalHoldingFare,
         'finalFare': finalFare,
