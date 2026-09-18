@@ -1635,8 +1635,6 @@ class BookingCard extends StatelessWidget {
 
     final canTrack =
         status == 'Confirmed' || status == 'Trip Started';
-    final balance = NumberUtil.toDouble(b['balanceAmount']) ?? 0;
-    final balanceStatus = (b['balancePaymentStatus'] ?? 'Pending').toString();
 
     return Card(
       child: Padding(
@@ -1719,6 +1717,8 @@ class BookingCard extends StatelessWidget {
                   label: const Text('TRACK DRIVER'),
                 ),
               ),
+            final balance = NumberUtil.toDouble(b['balanceAmount']) ?? 0;
+            final balanceStatus = (b['balancePaymentStatus'] ?? 'Pending').toString();
             if (paymentStatus == 'Paid' && balance > 0 && balanceStatus != 'Paid') ...[
               const SizedBox(height: 10),
               Text('Balance: ${money(balance)} • ${balanceStatus == 'Cash Pending' ? 'Cash Pending' : 'Pending'}', style: const TextStyle(fontWeight: FontWeight.w800)),
@@ -2227,6 +2227,7 @@ class AdminPanel extends StatelessWidget {
                             label: const Text('DRIVER MODE'),
                           ),
                         ),
+                      ],
                     ],
                   ),
                 ),
@@ -2505,20 +2506,14 @@ class _DriverModePageState extends State<DriverModePage> {
           NumberUtil.toDouble(t['liveDistanceKm']) ?? 0;
       final rate =
           NumberUtil.toDouble(t['ratePerKm']) ?? acRate;
-      final startAt = (t['startedAt'] as Timestamp?)?.toDate();
-      double hours = 0.0;
-      if (startAt != null) {
-        final elapsed = DateTime.now().difference(startAt).inMinutes;
-        hours = elapsed / 60.0;
-      }
       final finalDistanceFare = liveDistance * rate;
-      final finalHoldingFare = hours * holdingRate;
+      final finalHoldingFare = 0.0;
       final finalFare = finalDistanceFare + finalHoldingFare;
 
       await tripRef.update({
         'status': 'Completed',
         'endDistanceKm': liveDistance,
-        'holdingHoursFinal': hours,
+        'holdingHoursFinal': 0.0,
         'distanceFareFinal': finalDistanceFare,
         'holdingFareFinal': finalHoldingFare,
         'finalFare': finalFare,
